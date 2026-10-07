@@ -17,4 +17,6 @@
 | [실행 계획](docs/EXECUTION_PLAN.md) | 역할, 주별 일정, 판단 관문 |
 | [위험과 대응](docs/RISKS.md) | 주요 위험과 축소 방안 |
 | [9/30 발표](docs/progress/0930/README.md) | 서비스 설명 발표 원고 |
+| [10/7 발표](docs/progress/1007/README.md) | 합성 대수층 검증 결과 발표 원고 |
 | [가상 데이터 데모](demo/README.md) | 불확실성 반영 취수 계획 데모 실행 방법 |
+| [합성 대수층 검증](synthetic/README.md) | 역산 복원·E1~E4 비교 실험(R2 관문), [결과](synthetic/results/RESULTS.md) |
