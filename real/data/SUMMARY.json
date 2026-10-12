@@ -1,0 +1,53 @@
+{
+ "points": 74944,
+ "cells_500m": 3619,
+ "months": [
+  "2015-01",
+  "2026-04"
+ ],
+ "vel_mm_yr": {
+  "median": -6.0,
+  "p5": -37.7
+ },
+ "aqueduct_2km_cells_all": 440,
+ "aqueduct_2km_cells_in_oilfield": 172,
+ "aqueduct_2km_oilfield_vel_mm_yr_median": -15.9,
+ "aqueduct_2km_cells": 268,
+ "aqueduct_2km_vel_mm_yr": {
+  "median": -15.3,
+  "min": -38.2
+ },
+ "aqueduct_2km_cum_mm_last": {
+  "median": -60.0,
+  "min": -256.0
+ },
+ "note": "aqueduct_2km_* 통계는 유전 밖 격자만 사용",
+ "timeseries_points_with_2015_06_ref": 59760,
+ "figure2_panels": [
+  {
+   "well": "355816N1196775",
+   "cell_lat": 35.5879,
+   "cell_lon": -119.6796,
+   "cell_vel_mm_yr": -23.6,
+   "cell_cum_mm_last": -189.0,
+   "well_to_cell_km": 0.72,
+   "well_to_aqueduct_km": 0.07
+  },
+  {
+   "well": "355944N1195814",
+   "cell_lat": 35.5924,
+   "cell_lon": -119.5801,
+   "cell_vel_mm_yr": -4.1,
+   "cell_cum_mm_last": -37.0,
+   "well_to_cell_km": 0.25,
+   "well_to_aqueduct_km": 8.64
+  }
+ ],
+ "wells": 30,
+ "wells_ge20": 18,
+ "gwl_measurements": 1831,
+ "gwl_period": [
+  "2014-01-16",
+  "2026-07-22"
+ ]
+}
