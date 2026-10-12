@@ -1,7 +1,8 @@
 """합성 대수층 E1~E4 비교 실험: 역산 복원 -> 검증기간 예측 -> 취수 계획 -> 참값으로 평가.
 
-실행: python3 synthetic/run_experiment.py [--trials 10] [--members 30]
-결과: synthetic/results/RESULTS.md, results.json (시행별 캐시: results/trials/, 중단 후 다시 실행하면 이어서 계산)
+실행: python3 synthetic/run_experiment.py [--trials 10] [--members 30] [--truth theis|mf6]
+결과: --truth theis(기본, 10/7) → synthetic/results/, --truth mf6(10/12, 참값을 MODFLOW 6 + CSUB로) → synthetic/results_mf6/
+     RESULTS.md, results.json (시행별 캐시: trials/, 중단 후 다시 실행하면 이어서 계산)
 """
 import argparse
 import json
@@ -23,6 +24,9 @@ from scenario import build_site, weekly_demand  # noqa: E402
 # 데모 기본값과 같은 계획 조건
 MONTHLY_DEMAND = 30000.0
 LIMIT_MM = 6.0
+# 물리모델 참값에서는 압축층 저류가 수위 변화를 늦춰 한 달 추가 침하가 해석해보다 훨씬 작다.
+# 기준을 실제 검증 지역 수로 주변 침하 속도(중앙값 15.3mm/년 ≈ 월 1.3mm, real/README.md)보다 낮은 월 1.0mm로 둔다.
+LIMIT_MM_MF6 = 1.0
 PURCHASE_COST = 1500.0
 PURCHASE_CAP = 3000.0
 METHODS = ["E1", "E2", "E3", "E4"]
@@ -48,9 +52,19 @@ def baseline_plan(site, demand):
     return Plan(True, pumping, purchase, cost)
 
 
+TRUTH = "theis"
+
+
+def make_obs(truth, seed):
+    if TRUTH == "mf6":
+        import mf6_truth
+        return mf6_truth.make_observations(truth, seed)
+    return a.make_observations(truth, seed)
+
+
 def one_trial(seed, n_members):
     truth = a.make_truth(seed)
-    obs = a.make_observations(truth, seed)
+    obs = make_obs(truth, seed)
     t0 = time.time()
     models = c.calibrate_all(obs, n_members, seed)
     calib_sec = time.time() - t0
@@ -98,7 +112,14 @@ def one_trial(seed, n_members):
     resp = {
         "E2": c_resp([models["E2"]]), "E3": c_resp([models["E3"]]), "E4": c_resp(e4),
     }
-    true_resp = a.response_matrix(truth.theta, sk_fn=truth.sk)
+    if TRUTH == "mf6":
+        import mf6_truth
+        def true_sub(total):   # 물리모델로 계획 기간 추가 침하 계산 (비선형이라 계획마다 실행)
+            return mf6_truth.plan_subsidence(truth, obs.rates, total)
+    else:
+        true_resp = a.response_matrix(truth.theta, sk_fn=truth.sk)
+        def true_sub(total):
+            return true_resp @ (total / 1000.0)
     plans = {"E1": baseline_plan(site, demand)}
     for k in ["E2", "E3", "E4"]:
         plans[k] = solve(site, demand, resp[k], LIMIT_MM, PURCHASE_COST, PURCHASE_CAP)
@@ -107,9 +128,12 @@ def one_trial(seed, n_members):
         if not p.feasible:
             pl[k] = {"feasible": False, "reason": p.reason}
             continue
-        sub = true_resp @ (p.pumping.sum(axis=0) / 1000.0)
+        total = p.pumping.sum(axis=0)
+        sub = true_sub(total)
+        pred = float(np.max(resp[k] @ (total / 1000.0))) if k in resp else None   # 대리모델이 예상한 최대 침하
         pl[k] = {"feasible": True, "cost": p.cost, "purchase": float(p.purchase.sum()),
-                 "true_worst_mm": float(sub.max()), "exceed": bool(sub.max() > LIMIT_MM + 1e-6)}
+                 "true_worst_mm": float(sub.max()), "pred_worst_mm": pred,
+                 "exceed": bool(sub.max() > LIMIT_MM + 1e-6)}
     out["planning"] = pl
     return out
 
@@ -121,14 +145,15 @@ def c_resp(models):
 def infeasible_test():
     """수요를 크게 올리고 기준을 강하게 하면 해 대신 실행 불가와 원인을 반환하는지 확인."""
     truth = a.make_truth(0)
-    obs = a.make_observations(truth, 0)
+    obs = make_obs(truth, 0)
     e3 = c.calibrate_e3(c.subset(obs, a.SPLIT_DAY))
     site = build_site()
     r = c_resp([e3])
+    tight = 0.15 if TRUTH == "mf6" else 1.0
     cases = {
-        "수요 40,000톤 · 기준 1mm (침하 기준 원인)": (40000.0, 1.0),
-        "수요 60,000톤 · 기준 6mm (용량 초과)": (60000.0, 6.0),
-        "수요 30,000톤 · 기준 6mm (정상)": (30000.0, 6.0),
+        f"수요 40,000톤 · 기준 {tight}mm (침하 기준 원인)": (40000.0, tight),
+        f"수요 60,000톤 · 기준 {LIMIT_MM}mm (용량 초과)": (60000.0, LIMIT_MM),
+        f"수요 30,000톤 · 기준 {LIMIT_MM}mm (정상)": (30000.0, LIMIT_MM),
     }
     res = {}
     for name, (dem, lim) in cases.items():
@@ -149,6 +174,11 @@ def write_report(trials, infeas, args, path):
              f"앙상블 크기 {args.members}. 계획 조건: 월 수요 {MONTHLY_DEMAND:,.0f}톤, 침하 기준 {LIMIT_MM}mm/월, "
              f"외부 용수 {PURCHASE_COST:,.0f}원/톤·주 {PURCHASE_CAP:,.0f}톤 한도.\n")
     L.append("모든 수치는 합성 자료에서 나온 값이며 실제 지역 성능을 뜻하지 않는다.\n")
+    if TRUTH == "mf6":
+        L.append("**참값(정답 땅)은 MODFLOW 6 + CSUB 물리모델**(2개 층, 누수, 수위 고정 경계, 비탄성 압축, 압축층 저류)이고, "
+                 "역산·계획 모델은 10/7과 같은 해석해(Theis + 선형 침하)다. 즉 역산 모델이 실제 땅보다 단순한 상황을 시험한다. "
+                 "T·S 오차는 참고용이다: 해석해 모델에는 압축층 저류 항이 없어서 그 저류를 S가 흡수하므로 S가 참값(조립질 저류)보다 크게 나오는 것이 정상이다. "
+                 "Sk 참값은 비탄성 값(압축층 비탄성 비저류 × 두께)이다.\n")
 
     L.append("## 1. 역산 복원 오차 (R2 관문 판단 자료)\n")
     L.append("| 방식 | T 오차 | S 오차 | 화소별 Sk 오차(중앙값) | 관리지점 Sk 최대 오차 |")
@@ -185,6 +215,20 @@ def write_report(trials, infeas, args, path):
                  f"{np.mean([p['purchase'] for p in ok]):,.0f} |")
     L.append("\n기준 초과 빈도 = 참값 대수층에서 관리지점 중 최대 침하가 기준을 넘은 실험 수.\n")
 
+    if all("pred_worst_mm" in t["planning"]["E3"] for t in trials if t["planning"]["E3"]["feasible"]):
+        L.append("### 대리모델이 예상한 침하 vs 참값 모델의 실제 침하\n")
+        L.append("계획은 해석해 대리모델로 세웠다. 같은 계획을 참값 모델로 다시 계산해 차이를 기록한다(검증 계획 3절 5번). "
+                 "E4의 예상값은 앙상블 구성원 중 가장 나쁜 값이다.\n")
+        L.append("| 방식 | 대리모델 예상 최대 침하 (mm) | 참값 최대 침하 (mm) | 평균 차이(참값-예상) | 참값이 예상보다 큰 실험 |")
+        L.append("|---|---|---|---|---|")
+        for k in ["E2", "E3", "E4"]:
+            ok = [t["planning"][k] for t in trials if t["planning"][k]["feasible"]]
+            if not ok:
+                continue
+            pr = np.array([p["pred_worst_mm"] for p in ok]); tr = np.array([p["true_worst_mm"] for p in ok])
+            L.append(f"| {LABEL[k]} | {pr.mean():.2f} | {tr.mean():.2f} | {(tr - pr).mean():+.2f} | {(tr > pr + 1e-6).sum()}/{len(ok)} |")
+        L.append("")
+
     L.append("## 4. 실행 불가 판정 테스트\n")
     L.append("| 입력 | 결과 |")
     L.append("|---|---|")
@@ -200,8 +244,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--trials", type=int, default=10)
     ap.add_argument("--members", type=int, default=30)
+    ap.add_argument("--truth", choices=["theis", "mf6"], default="theis")
     args = ap.parse_args()
-    out_dir = HERE / "results"
+    global TRUTH, LIMIT_MM
+    TRUTH = args.truth
+    if TRUTH == "mf6":
+        LIMIT_MM = LIMIT_MM_MF6
+    out_dir = HERE / ("results" if TRUTH == "theis" else "results_mf6")
     out_dir.mkdir(exist_ok=True)
     cache = out_dir / "trials"
     cache.mkdir(exist_ok=True)
