@@ -25,7 +25,7 @@
 |---|---|
 | 지역 전체 침하 속도 | 중앙값 -6.0 mm/년, 하위 5% -37.7 mm/년 |
 | 수로 2km 이내(유전 밖 268칸) 침하 속도 | 중앙값 **-15.3 mm/년**, 최대 -38.2 mm/년 |
-| 수로 2km 이내 누적 침하(2015.6 → 2026.4) | 중앙값 **-60 mm**, 최대 **-256 mm** |
+| 수로 2km 이내 누적 침하(2015.6 → 2026.4) | 중앙값 **-60 mm**, 최대 **-256 mm** (※ 2023년 이후 InSAR는 GPS보다 침하를 작게 보여 실제보다 작을 수 있음, 아래 참고) |
 | 수로 옆 다층 관측정 주변 격자 | -23.6 mm/년, 누적 -189 mm |
 
 ![침하와 수위](figures/real-2-timeseries.png)
@@ -41,7 +41,43 @@
 **2. 수로 옆 관측정은 최근에 생겼다.** 수로에서 0.1km 이내 다층 관측정 4곳(깊이별 3~5개 스크린)은 2023~2025년에 설치됐다. 2014년부터 기록이 있는 장기 관측정 7곳은 수로에서 4.6~8.6km 떨어져 있다.
 → 대응: 다층 관측정은 층별 수위(CSUB 다층 모델)에 아주 좋은 자료다. 대신 수로 주변의 E2(관측정만) vs E3(+위성) 비교는 2023~2025.6 보정, 2025.7~2026.4 검증으로 기간을 맞춘다.
 
-## 재현
+## 모델 역산과 GPS 검증 (10/12)
+
+실제 자료로 MODFLOW 6 + CSUB 모델을 보정하고, 보정에 쓰지 않은 **수로 GPS로 예측을 채점**했다. 결과: [results/RESULTS.md](results/RESULTS.md)
+
+![GPS 검증](results/real-3-gps-validation.png)
+
+| 방식 | 검증 기간(2023.1~2026.4) GPS 침하 오차 | 관측정 수위 오차 |
+|---|---|---|
+| E2 관측정만 | 54.0 mm | 12.72 m |
+| **E3 관측정 + 위성** | **17.5 mm** | **3.12 m** |
+| E4 + 불확실성 | 17.6 mm (90% 범위가 GPS를 30%만 포함 — 범위가 너무 좁음) | 3.12 m |
+
+- **위성을 넣으면 실제 관측으로 확인한 예측 오차가 약 3분의 1로 줄었다.**
+- E4 불확실성 범위가 너무 좁다. 가상 실험(synthetic/results_mf6)과 같은 원인: 모델 구조 오차를 반영하지 못함.
+
+### 2023년 이후 InSAR와 GPS 불일치 (중요)
+
+수로 GPS 5곳(NGL 처리)과 비교하면, 2015~2022년에는 InSAR와 GPS가 잘 맞지만(P544 2022.6: GPS 47mm, InSAR 38mm 침하) **2023년 이후 InSAR는 지반이 올라가는 것으로 나오고 GPS는 계속 침하한다**(P544 2025.12: GPS 72mm, InSAR 33mm). 그래서 2023년 이후 InSAR는 보정·검증에서 뺐다. 원인은 확인하지 못했다(InSAR 처리 갱신 문제로 추정).
+
+### 실행
+
+```bash
+cd real
+python3 run_real.py            # 약 10~15분 (MODFLOW 6 필요: get-modflow :flopy)
+```
+
+또는 Google Colab에서 `AquaLimit_real_colab.ipynb`를 열고 **런타임 → 모두 실행**. 셀마다 한국어 설명이 있다.
+
+| 파일 | 역할 |
+|---|---|
+| `real_model.py` | 자료 읽기, MODFLOW 모델 생성·실행, 역산(가우스-뉴턴), 불확실성 앙상블, 평가 |
+| `run_real.py` | E2·E3·E4 실행 → `results/` 표·그림 |
+| `AquaLimit_real_colab.ipynb` | 같은 과정을 Colab에서 단계별로 실행 |
+| `data/gps_monthly.csv` | GPS 5곳 월별 수직 위치(검증용) |
+| `data/precip_monthly.csv` | NOAA 관측소 2곳 월 강수(함양 계산) |
+
+## 자료 재현
 
 ```bash
 cd real
@@ -72,3 +108,5 @@ python3 prepare_insar.py   # data/·figures/ 생성
 - SWP 반복구간: https://data.cnra.ca.gov/dataset/i17-statewaterproject-repayment-reaches
 - SWP 정밀측량점: https://data.cnra.ca.gov/dataset/i06-precise-surveys-statewaterproject
 - CalGEM 유전 경계: https://data.cnra.ca.gov/dataset/oil-and-gas-field-administrative-boundaries1
+- GPS 수직 위치(Nevada Geodetic Laboratory, IGS20): https://geodesy.unr.edu
+- 강수(NOAA GHCN-Daily, Lost Hills USC00045151·Buttonwillow USC00041244): https://www.ncei.noaa.gov
