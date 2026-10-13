@@ -53,8 +53,8 @@
 | 단계 | 현재 상태 |
 |---|---|
 | 자료 수집 | `real/fetch_data.py` (범위 상수만 바꾸면 다른 지역 수집, 10/12) |
-| 물리모델 생성 | `synthetic/mf6_truth.py` (가상 대수층, 10/12). 실제 지역 버전 예정 |
-| AI 대리모델 | 예정 |
+| 물리모델 생성 | `synthetic/mf6_truth.py` (가상, 10/12), `real/real_model.py` (실제 지역, CVHM2 층 구조, 10/13) |
+| AI 대리모델 | `real/surrogate_real.py` (10/13): MODFLOW 600회 학습, 침하 오차 0.14mm(R² 0.997), 1,000개 앙상블 0.1초 |
 
 ### 날씨·외부 요인
 
