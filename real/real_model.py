@@ -68,6 +68,16 @@ PARAMS_CVHM2 = ([(f"log10_mSk_z{i}", 0.0, 0.5) for i in range(SK_ZONES * SK_ZONE
     ("dry_beta", 0.5, 0.5),                    # 가뭄 해 취수 증가 계수
     ("log10_rch", np.log10(0.1), 0.4),         # 강수 중 함양 비율
 ])
+# 취수량 추정 방식: "et"(위성 증발산 기반, 기본) 또는 "uniform"(농경지 균일 × 계절 × 가뭄 계수, 이전 방식)
+PUMPING = os.environ.get("AQ_PUMPING", "et")
+if STRUCTURE == "cvhm2" and PUMPING == "et":
+    # 칸별 지하수 취수 = 배수 × max(위성 증발산 − 유효강수, 0) × (1 − 수로물 비율 × 그해 SWP 배분율)
+    # 지하수 취수 = (위성 증발산으로 설명되는 밭별 취수) + (지역 공통 취수: 증발산으로 설명 안 되는 부분, 이전 방식)
+    PARAMS_CVHM2 = PARAMS_CVHM2[:14] + [
+        ("log10_pmult", 0.0, 0.3),             # 관개 수요/순증발산 배수(관개 효율·위성 오차 보정)
+        ("log10_sw", np.log10(0.3), 0.4),      # SWP 100% 배분일 때 수로물 공급 깊이 m/년(관리 지역 농경지 평균)
+        ("log10_rch", np.log10(0.1), 0.4),
+    ]
 PARAMS = PARAMS_CVHM2 if STRUCTURE == "cvhm2" else PARAMS_SIMPLE
 NAMES = [p[0] for p in PARAMS]
 PRIOR_MEAN = np.array([p[1] for p in PARAMS])
@@ -128,7 +138,55 @@ def load_site():
     ag = (lon_c > aq_lon + 0.005) & (oil_frac < 0.5 * np.maximum(cnt, 1))
 
     return dict(cells=cells, disp=disp, months=months, nx=nx, ny=ny, use=use.to_numpy(), hobs=hobs,
-                ag=ag, precip=load_precip(months), gps=load_gps(months), aq_pts=pts, lat_c=lat_c, lon_c=lon_c, cv=cv)
+                ag=ag, precip=load_precip(months), gps=load_gps(months), aq_pts=pts, lat_c=lat_c, lon_c=lon_c, cv=cv,
+                **load_et(months, lat_c, lon_c))
+
+
+P_EFF = 0.7                  # 강수 중 작물이 쓰는 비율(유효강수)
+ET_BASE_YEARS = (2023, 2025)  # 미래 달 증발산: 이 기간 같은 달 평균(최근 작부 반영)
+
+
+ET_SOURCE = os.environ.get("AQ_ET", "landsat")   # "landsat"(Landsat NDVI × gridMET 기준증발산, 기본) 또는 "ssebop"
+
+
+def kc_from_ndvi(ndvi):
+    """작물계수 Kcb = 1.44·NDVI − 0.1 (Johnson & Trout 2012, NASA SIMS 방식)."""
+    return np.clip(1.44 * ndvi - 0.1, 0.0, 1.2)
+
+
+def load_et(months, lat_c, lon_c):
+    """작물 증발산 → 모델 격자, SWP 배분율, 기온.
+    landsat: 작물 증발산 = 작물계수(Landsat NDVI, fetch_landsat.py) × 기준 증발산(gridMET: 기온·습도·바람·일사로 계산)
+    ssebop : USGS SSEBop 실제 증발산(MODIS, fetch_et.py)"""
+    if ET_SOURCE == "landsat":
+        zn = np.load(DATA / "ndvi_monthly.npz"); ze = np.load(DATA / "eto_gridmet_monthly.npz")
+        nm = list(pd.PeriodIndex(zn["months"], freq="M")); em = pd.PeriodIndex(ze["months"], freq="M")
+        em = [m for m in em if m in set(nm)]
+        eidx = {m: i for i, m in enumerate(pd.PeriodIndex(ze["months"], freq="M"))}
+        E = np.array([kc_from_ndvi(zn["ndvi"][nm.index(m)]) * ze["eto_mm"][eidx[m]] for m in em])
+        em = pd.PeriodIndex(em, freq="M")
+    else:
+        z = np.load(DATA / "et_ssebop_monthly.npz")
+        em = pd.PeriodIndex(z["months"], freq="M")
+        iy = np.abs(z["lat"][:, None, None] - lat_c[None]).argmin(0)
+        ix = np.abs(z["lon"][:, None, None] - lon_c[None]).argmin(0)
+        E = np.nan_to_num(z["et_mm"][:, iy, ix])                      # (달, ny, nx) mm/달
+    et = pd.Series(list(E), index=em)
+    clim = {m: np.mean([et[pd.Period(f"{y}-{m:02d}", "M")] for y in range(ET_BASE_YEARS[0], ET_BASE_YEARS[1] + 1)], 0)
+            for m in range(1, 13)}
+    al = pd.read_csv(DATA / "swp_allocation.csv").set_index("year").alloc_pct / 100.0
+    t = pd.read_csv(DATA / "temp_monthly.csv", index_col=0)
+    t.index = pd.PeriodIndex(t.index, freq="M")
+    tclim = t.groupby(t.index.month).mean()
+    return dict(et=np.array([et[m] for m in months]), et_clim=clim, et_all=et, alloc=al, temp=t, temp_clim=tclim)
+
+
+def hargreaves_factor(month, dT):
+    """기온이 dT(°C) 오를 때 기준 증발산(Hargreaves) 증가 배수. 최고·최저 기온이 같이 오른다고 본다."""
+    return 1.0 + dT / (T_CLIM_MEAN[month] + 17.8)
+
+
+T_CLIM_MEAN = {}
 
 
 def load_precip(months):
@@ -189,19 +247,57 @@ def zone_index(site):
     return zy * SK_ZONES + zx                                   # (ny, nx), iy 기준(남→북), 모델 격자
 
 
-def forcing(site, theta, extra_months=0, future_dry=0.0):
-    """월별 함양(m/일)과 농경지 셀 취수(m3/일/셀). extra_months: 자료 끝(2026.4) 뒤로 더 계산할 달 수(계획용).
-    미래 강수는 월별 평년값, 미래 가뭄 계수는 future_dry(0=평년, +1=아주 건조, -1=아주 습함)."""
+def forcing(site, theta, extra_months=0, future_dry=0.0, future=None):
+    """월별 함양(m/일)과 취수(m3/일). extra_months: 자료 끝(2026.4) 뒤로 더 계산할 달 수(계획용).
+    PUMPING="et": 취수는 칸별 배열 (달, ny, nx). future: {"dT": 기온 변화 °C, "alloc": SWP 배분율, "pfac": 강수 배수}
+    PUMPING="uniform": 취수는 농경지 칸 공통 값 (달,). future_dry로 가뭄 계수."""
     p = dict(zip(NAMES, theta))
+    future = future or {}
     months = site["months"][1:]
     prcp = site["precip"][1:]
     if extra_months:
         fut = pd.period_range(site["months"][-1] + 1, periods=extra_months, freq="M")
         clim = pd.Series(site["precip"], index=[m.month for m in site["months"]]).groupby(level=0).mean()
-        prcp = np.concatenate([prcp, clim.reindex([m.month for m in fut]).to_numpy()])
+        prcp = np.concatenate([prcp, clim.reindex([m.month for m in fut]).to_numpy() * future.get("pfac", 1.0)])
         months = months.append(fut)
     days = np.array([m.days_in_month for m in months], float)
     rch = 10 ** p["log10_rch"] * prcp / 1000.0 / days
+    if PUMPING == "et" and STRUCTURE == "cvhm2":
+        n_hist = len(site["months"]) - 1
+        E = list(site["et"][1:])
+        if extra_months:
+            if not T_CLIM_MEAN:
+                tc = site["temp_clim"]; T_CLIM_MEAN.update({m: float((tc.tmax[m] + tc.tmin[m]) / 2) for m in tc.index})
+            dT = future.get("dT", 0.0)
+            E += [site["et_clim"][m.month] * hargreaves_factor(m.month, dT) for m in months[n_hist:]]
+        E = np.array(E)                                               # (달, ny, nx) mm/달
+        al = site["alloc"]
+        a = np.array([al.get(m.year, al.iloc[-1]) for m in months], float)
+        if extra_months and "alloc" in future:
+            a[n_hist:] = future["alloc"]
+        net = np.maximum(E - P_EFF * prcp[:, None, None], 0.0) * site["ag"][None]   # 관개로 채워야 하는 증발산 mm/달
+        need = 10 ** p["log10_pmult"] * net                           # 관개 수요 mm/달
+        # 수로물은 물 공급구역 단위로 정해진 양(계약량 × 그해 배분율)이 들어오고, 달별로는 수요에 비례해 나눠 쓴다.
+        # 수로물이 수요보다 적은 만큼을 지하수로 채운다 → 배분율이 낮은 가뭄 해에 지하수 취수가 크게 는다.
+        yr = np.array([m.year for m in months])
+        tot = need.sum((1, 2))
+        sw = np.zeros(len(months))
+        n_ag = site["ag"].sum()
+        for y in np.unique(yr):
+            k = yr == y
+            sw_year = 10 ** p["log10_sw"] * 1000.0 * a[k][0] * n_ag * (k.sum() / 12.0)   # mm × 칸
+            sw[k] = sw_year * tot[k] / max(tot[k].sum(), 1e-9)
+        frac_gw = np.clip(1 - sw / np.maximum(tot, 1e-9), 0.0, 1.0)
+        gw = need * frac_gw[:, None, None]                            # 지하수로 채우는 양 mm/달
+        q = gw / 1000.0 / days[:, None, None] * MCELL * MCELL         # m3/일/칸
+        q = q + base_uniform(site, p, months, extra_months, future.get("dry", future_dry))[:, None, None]
+        q = q * site["ag"][None]
+        return days, np.maximum(rch, 0), q
+    return days, np.maximum(rch, 0), base_uniform(site, p, months, extra_months, future_dry)
+
+
+def base_uniform(site, p, months, extra_months=0, future_dry=0.0):
+    """농경지 칸 공통 취수(m3/일/칸) = 기본량 × 관개기 계절 × (1 + 가뭄 계수 × 그해 가뭄 정도)."""
     season = np.where(np.isin([m.month for m in months], [4, 5, 6, 7, 8, 9]), 1.6, 0.4)
     wy = np.array([m.year + (1 if m.month >= 10 else 0) for m in site["months"][1:]])
     allp = pd.Series(site["precip"][1:], index=wy).groupby(level=0).sum()
@@ -211,7 +307,7 @@ def forcing(site, theta, extra_months=0, future_dry=0.0):
     if extra_months:
         dval[-extra_months:] = future_dry
     q = (10 ** p["log10_pump"] / 365.25) * season * (1 + p["dry_beta"] * np.nan_to_num(dval))
-    return days, np.maximum(rch, 0), np.maximum(q, 0) * MCELL * MCELL
+    return np.maximum(q, 0) * MCELL * MCELL
 
 
 def run_model(site, theta, ws=None, keep=False, plan=None):
@@ -279,8 +375,17 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
     ny, nx = site["ny"], site["nx"]
     own = ws is None
     ws = ws or tempfile.mkdtemp(prefix="aq_cv_")
-    nplan = plan["months"] if plan else 0
-    days, rch, q = forcing(site, theta, nplan, plan.get("dry", 0.0) if plan else 0.0)
+    # plan["start"]가 있으면 과거 기간 안에서 계획(과거 재현), 없으면 자료 끝 뒤로 계획 기간을 붙인다
+    in_hist = bool(plan) and plan.get("start") is not None
+    nplan = plan["months"] if plan and not in_hist else 0
+    days, rch, q = forcing(site, theta, nplan, plan.get("dry", 0.0) if plan else 0.0, plan.get("future") if plan else None)
+    if plan:
+        n0 = plan["start"] if in_hist else len(days) - plan["months"]
+        plan_k = range(n0, n0 + plan["months"])
+        if plan.get("replace_cells") and q.ndim == 3:                # 계획 대상 칸의 기존 취수는 계획으로 대체
+            q = q.copy()
+            for iy, ix in plan["replace_cells"]:
+                q[list(plan_k), iy, ix] = 0.0
     flip = lambda a: a[::-1, :]                                    # iy(남→북) → MODFLOW 행(북→남)
     G = ["G1", "G2", "G3", "G4"]
     thk = np.stack([cv[f"{g}_thk"] for g in G])
@@ -314,15 +419,16 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
     flopy.mf6.ModflowGwfchd(gwf, stress_period_data={0: [[e, 0.0] for e in edge]})
     flopy.mf6.ModflowGwfrcha(gwf, recharge={k: float(rch[k]) for k in range(len(days))})
     ag = np.argwhere(site["ag"] & active)
-    wel = {k: [[(L, ny - 1 - iy, ix), -float(q[k]) * f] for iy, ix in ag for L, f in ((2, 0.6), (3, 0.4))]
-           for k in range(len(days))}
+    qc = (lambda k, iy, ix: float(q[k, iy, ix])) if q.ndim == 3 else (lambda k, iy, ix: float(q[k]))
+    wel = {k: [[(L, ny - 1 - iy, ix), -qc(k, iy, ix) * f] for iy, ix in ag for L, f in ((2, 0.6), (3, 0.4))
+               if qc(k, iy, ix) > 0] for k in range(len(days))}
     if plan:
-        n0 = len(days) - nplan
-        for j in range(nplan):
+        for j, k in enumerate(plan_k):
             for w, (iy, ix) in enumerate(plan["wells"]):
                 rate = float(plan["rates"][j][w])
-                if rate > 0:
-                    wel[n0 + j] += [[(L, ny - 1 - iy, ix), -rate * f] for L, f in ((2, 0.6), (3, 0.4))]
+                if rate > 0 and active[iy, ix]:
+                    wel[k] += [[(L, ny - 1 - iy, ix), -rate * f] for L, f in ((2, 0.6), (3, 0.4))]
+    wel = {k: (v if v else [[(2, ny - 1 - int(ag[0][0]), int(ag[0][1])), 0.0]]) for k, v in wel.items()}
     flopy.mf6.ModflowGwfwel(gwf, stress_period_data=wel)
     mult = 10 ** np.array([p[f"log10_mSk_z{i}"] for i in range(SK_ZONES ** 2)])[zone_index(site)]
     pdata, n = [], 0
@@ -513,7 +619,7 @@ def _fd_jacobian(site, theta, idx, base, step=0.05, workers=None):
     return J
 
 
-def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None):
+def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None, ckpt=None):
     """가우스-뉴턴(레벤버그-마쿼트) 최소제곱 역산.
 
     목적함수 = Σ((모델-관측)/σ)² + Σ((θ-사전평균)/사전σ)².
@@ -523,12 +629,17 @@ def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None):
     th = PRIOR_MEAN.copy()
     lam = 1.0
     hist = []
+    it0 = 0
+    if ckpt is not None and Path(ckpt).exists():                    # 중간 저장에서 이어 하기(컴퓨터가 꺼져도 반복 단위로 보존)
+        ck = json.load(open(ckpt))
+        th, lam, hist, it0 = np.array(ck["th"]), ck["lam"], ck["hist"], ck["it"]
+        log(f"  중간 저장에서 이어 함: 반복 {it0}/{n_iter} 완료 상태")
     def cost(o, t):
         r = (simulate_obs(o, idx) - idx["d"]) / idx["sd"]
         return float(r @ r + (((t - PRIOR_MEAN) / PRIOR_SD) ** 2).sum()), r
     out = run_model(site, th)
     c, r = cost(out, th)
-    for it in range(n_iter):
+    for it in range(it0, n_iter):
         base = simulate_obs(out, idx)
         J = _fd_jacobian(site, th, idx, base, workers=workers)
         Jp = np.diag(1 / PRIOR_SD)
@@ -553,6 +664,8 @@ def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None):
         rh = np.sqrt(np.mean((r * idx["sd"])[n:] ** 2)) if len(r) > n else float("nan")
         hist.append({"iter": it + 1, "cost": c, "insar_rmse_mm": rm, "head_rmse_m": rh})
         log(f"  반복 {it + 1}/{n_iter}: 목적함수 {c:,.0f}, InSAR RMSE {rm:.1f} mm, 수위 RMSE {rh:.2f} m" + ("" if improved else " (개선 없음)"))
+        if ckpt is not None:
+            json.dump({"th": th.tolist(), "lam": lam, "hist": hist, "it": it + 1}, open(ckpt, "w"), default=float)
         if not improved and lam > 1e3:
             break
     base = simulate_obs(out, idx)

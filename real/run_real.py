@@ -32,12 +32,12 @@ def main(n_iter=6, n_post=30):
             print(f"{msg} (저장된 결과 사용)")
             c = cache[key]; return np.array(c["th"]), np.array(c["cov"]), c["hist"]
         print(msg)
-        th, cov, h = r.calibrate(site, n_iter=n_iter, **kw)
+        th, cov, h = r.calibrate(site, n_iter=n_iter, ckpt=OUT / f"ckpt_{key}.json", **kw)
         cache[key] = {"th": th.tolist(), "cov": cov.tolist(), "hist": h}
         json.dump(cache, open(cache_f, "w"), default=float)
         return th, cov, h
-    th2, cov2, h2 = cal("E2", "[E2] 관측정 수위만으로 역산", use_insar=False)
     th3, cov3, h3 = cal("E3", "[E3] 관측정 수위 + 위성(InSAR)으로 역산", use_insar=True)
+    th2, cov2, h2 = cal("E2", "[E2] 관측정 수위만으로 역산", use_insar=False)
     print("[E4] E3 사후분포에서 앙상블 실행"); M4, o4 = r.posterior_ensemble(site, th3, cov3, n=n_post)
     print("[E2 앙상블] 비교용"); M2, o2 = r.posterior_ensemble(site, th2, cov2, n=n_post, seed=1)
     thh, _, _ = cal("H2019", "[E4 구조 오차] 2015.7~2019.12로 보정 → 2020~2022 InSAR 예측 오차 측정", use_insar=True, cal_end="2019-12")
