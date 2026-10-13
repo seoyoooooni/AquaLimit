@@ -16,7 +16,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-os.environ.setdefault("AQ_PUMPING", "uniform")   # 데모는 계획·AI 결과를 만든 이전 버전 모델 기준
+# 데모는 계획·AI 결과를 만든 첫 번째 모델(uniform) 기준으로 고정한다. 사용자가 AQ_PUMPING=et를 설정해 두었어도 덮어쓴다.
+os.environ["AQ_PUMPING"] = "uniform"
 import real_model as r  # noqa: E402
 import plan_real as p  # noqa: E402
 
@@ -35,6 +36,7 @@ def load():
     z3 = np.load(PLAN / "R3.npz")
     R3 = {k: z3[k] for k in z3.files}
     Rai = None
+    oos = json.load(open(PLAN / "oos.json")) if (PLAN / "oos.json").exists() else None
     f = AI / "R_ai1000.npz"
     if f.exists():
         za = np.load(f); Rai = [{"Rs": za["Rs"][i].astype(float), "Rh": za["Rh"][i].astype(float)} for i in range(len(za["Rs"]))]
@@ -42,7 +44,7 @@ def load():
     oil = json.load(open(HERE / "data" / "oil_fields_in_box.geojson"))
     cells_ll = lambda ij: (r.LAT0 + (ij[0] + 0.5) * r.MCELL / 1000 / r.KM_LAT, r.LON0 + (ij[1] + 0.5) * r.MCELL / 1000 / r.KM_LON)
     return dict(site_aq=site["aq_pts"], pts=[cells_ll(q) for q in pts], wells=[cells_ll(w) for w in wells],
-                R4=R4, R3=R3, Rai=Rai, vel=vel, oil=oil)
+                R4=R4, R3=R3, Rai=Rai, vel=vel, oil=oil, oos=oos)
 
 
 D = load()
@@ -120,13 +122,25 @@ with c2:
         m2.metric("외부 구매", f"{plan['purchase'] / 1e3:,.0f}천 m³")
         p.LIMIT_MM = limit                                            # 평가는 원래 기준으로
         rk = p.risk(plan, D["R4"])
-        m3.metric("기준 초과 확률", f"{rk['exceed_prob'] * 100:.0f}%", help="MODFLOW 앙상블 30개(E4)로 평가")
+        n4 = len(D["R4"]); k4 = int(round(rk["exceed_prob"] * n4))
+        m3.metric("기존 30개 시나리오 내 초과 비율", f"{k4}/{n4}",
+                  help="E4 MODFLOW 앙상블 30개로 잰 값. 'E4 MODFLOW 앙상블 30개'로 계획하면 바로 이 30개에서 기준을 지키도록 만들기 때문에 0/30은 정의상 나온다.")
         tbl = pd.DataFrame({"우물": [chr(65 + i) for i in range(W)], "비용($/m³)": p.WELL_COST,
                             "계획 취수(m³/일)": np.round(plan["rates"]).astype(int),
                             "기존 방식(m³/일)": np.round(base["rates"]).astype(int)})
         st.dataframe(tbl, hide_index=True, width="stretch")
         rb = p.risk(base, D["R4"])
-        st.caption(f"기존 방식(용량 비례): 비용 {base['cost'] / 1e3:,.0f}천$, 기준 초과 확률 {rb['exceed_prob'] * 100:.0f}%")
+        st.caption(f"기존 방식(용량 비례): 비용 {base['cost'] / 1e3:,.0f}천$, 기존 30개 시나리오 내 초과 {int(round(rb['exceed_prob'] * n4))}/{n4}")
+        if mode.startswith("E4 MODFLOW"):
+            st.warning("이 계획은 위 30개 시나리오 모두에서 기준을 지키도록 만든 것이라, 같은 30개로 잰 0/30은 실제 위험이 0%라는 뜻이 아니다.")
+        o = D.get("oos")
+        if o and "E4" in o["plans"]:
+            e4 = o["plans"]["E4"]["oos"]; n = o["n_new_members"]
+            c = lambda x: int(round(x * n))
+            st.info(f"참고 — 기본 조건(수요 900천 m³, 기준 2mm)의 E4 계획을 **계획에 안 쓴 {n}개**로 다시 잰 값: "
+                    f"평년 {c(e4['평년']['x1.0'])}/{n}, 가뭄 해 {c(e4['가뭄 해']['x1.0'])}/{n}, "
+                    f"실제 땅이 25% 더 반응하면 평년 {c(e4['평년']['x1.25'])}/{n}. "
+                    f"0/{n}도 위험이 0이라는 증거는 아니다(통계적으로 대략 10% 미만). results_plan/RESULTS_oos.md")
 
 st.subheader("3. 모델은 믿을 만한가? — 보정에 쓰지 않은 GPS로 검증")
 st.image(str(r.result_dir("model", create=False) / "real-3-gps-validation.png"), width="stretch")

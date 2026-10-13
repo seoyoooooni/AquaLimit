@@ -9,7 +9,7 @@ Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하�
 | 버전 | 취수 추정 | 실행 | 결과 폴더 |
 |---|---|---|---|
 | **이전 버전(uniform)** | 수로 동쪽 농경지 전체에 고르게 × 관개기 계절 × 가뭄 계수, 크기는 역산 | `AQ_PUMPING=uniform python ...` | `results_uniform/`, `results_plan/`, `results_ai/` |
-| **새 버전(et, 기본)** | Landsat NDVI × gridMET 기준증발산(기온·습도·바람·일사)으로 칸별 작물 증발산 → 비·SWP 수로 물 배분율을 빼고 남는 만큼 지하수 + 위성으로 설명 안 되는 나머지(이전 버전의 균일·계절·가뭄 항)를 역산 | `python ...` | `results/` (계획·AI는 아직 안 만듦) |
+| **새 버전(et, 기본)** | Landsat NDVI × gridMET 기준증발산(기온·습도·바람·일사)으로 칸별 작물 증발산 → 비·SWP 수로 물 배분율을 빼고 남는 만큼 지하수 + 위성으로 설명 안 되는 나머지(이전 버전의 균일·계절·가뭄 항)를 역산 | `python ...` (기본값) | `results/` (계획·AI는 아직 안 만듦) |
 
 취수 계획, 날씨 시나리오, AI 대리모델, 데모 앱은 **이전 버전 모델**로 만든 것이다. 데모 앱(`app_real.py`)은 이전 버전을 읽도록 고정돼 있다.
 
@@ -60,12 +60,21 @@ cd real
 pip install -r requirements.txt
 get-modflow :flopy                 # MODFLOW 6 실행파일 설치
 python3 fetch_cvhm2.py             # (선택) CVHM2 층 구조 다시 만들기, 334MB 내려받음. 결과 npz는 이미 들어 있음
-python3 run_real.py                # 역산 + GPS 검증 → results/        약 1시간
-python3 run_plan.py                # 취수 계획 E1~E4 → results_plan/  약 20분
-python3 run_weather.py             # 날씨 시나리오(가뭄·평년·습한 해) → results_plan/  약 25분
-python3 surrogate_real.py          # AI 대리모델 → results_ai/        약 40~60분
-streamlit run app_real.py          # 데모 화면
+
+# 첫 번째 모델(uniform) — 발표의 계획·날씨·AI·데모 결과를 만든 버전. AQ_PUMPING=uniform을 꼭 붙인다.
+AQ_PUMPING=uniform python3 run_real.py        # 역산 + GPS 검증 → results_uniform/
+AQ_PUMPING=uniform python3 run_plan.py        # 취수 계획 E1~E4 → results_plan/
+AQ_PUMPING=uniform python3 run_weather.py     # 날씨 시나리오 → results_plan/
+AQ_PUMPING=uniform python3 surrogate_real.py  # AI 대리모델 → results_ai/
+python3 eval_plan_oos.py                      # 표본 밖 평가(첫 번째 모델 고정) → results_plan/RESULTS_oos.md
+streamlit run app_real.py                     # 데모 화면(첫 번째 모델 고정)
+
+# 새 버전(et, 기본값) — 위성·기상·배분율 취수 추정. 결과는 다른 폴더에 생긴다.
+python3 run_real.py                # 역산 + GPS 검증 → results/
+python3 run_plan.py                # (아직 안 만듦) → results_plan_et/
 ```
+
+결과 폴더마다 `model_version.json`(structure, pumping, et_source, 파라미터 이름)이 있고, 지금 설정과 하나라도 다르면 스크립트가 멈추고 어떤 환경변수로 실행해야 하는지 알려 준다.
 
 Google Colab: `AquaLimit_real_colab.ipynb`를 열고 **런타임 → 모두 실행**(저장된 결과 보기 약 3분, `RECOMPUTE = True`면 전체 재계산).
 

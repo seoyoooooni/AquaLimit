@@ -121,10 +121,17 @@ def check_version(d):
         names = json.load(open(d / "results.json")).get("params", {}).get("names"); v = {}
     else:
         return
+    cur = model_version()
+    diff = [k for k in ("structure", "pumping", "et_source") if k in v and v[k] != cur[k]]
     if names is not None and list(names) != list(NAMES):
-        other = "uniform" if len(names) == len(PARAMS_CVHM2_BASE) else "et"
-        raise RuntimeError(f"{d.name}/ 결과는 다른 모델 버전(파라미터 {len(names)}개, 취수 방식 {v.get('pumping', other)})으로 만든 것입니다. "
-                           f"지금은 {PUMPING}(파라미터 {len(NAMES)}개). 'AQ_PUMPING={v.get('pumping', other)} python ...'로 실행하거나 결과를 다시 만드세요.")
+        diff.append("param_names")
+    if diff:
+        other = v.get("pumping") or ("uniform" if names is not None and len(names) == len(PARAMS_CVHM2_BASE) else "et")
+        env = f"AQ_PUMPING={other}" + (f" AQ_ET={v['et_source']}" if v.get("et_source") else "")
+        raise RuntimeError(f"{d.name}/ 결과는 다른 모델 버전으로 만든 것입니다(다른 항목: {', '.join(diff)}). "
+                           f"폴더: {dict((k, v.get(k)) for k in ('structure', 'pumping', 'et_source'))}, "
+                           f"지금: {dict((k, cur[k]) for k in ('structure', 'pumping', 'et_source'))}. "
+                           f"'{env} python ...'로 실행하거나 결과를 다시 만드세요.")
 
 
 # ---------------------------------------------------------------- 자료
@@ -326,10 +333,15 @@ def forcing(site, theta, extra_months=0, future_dry=0.0, future=None):
         tot = need.sum((1, 2))
         sw = np.zeros(len(months))
         n_ag = site["ag"].sum()
-        for y in np.unique(yr):
-            k = yr == y
-            sw_year = 10 ** p["log10_sw"] * 1000.0 * a[k][0] * n_ag * (k.sum() / 12.0)   # mm × 칸
-            sw[k] = sw_year * tot[k] / max(tot[k].sum(), 1e-9)
+        # 같은 해, 같은 배분율인 달끼리 묶는다. 과거 달은 해마다 배분율이 하나라 해별 묶음과 같다.
+        # 미래 시나리오에서 배분율을 바꾸면(future["alloc"]) 그해 과거 달과 미래 달이 따로 묶여 미래 설정값이 반영된다.
+        # 과거 달과 미래(계획) 달도 따로 묶는다 → 계획 기간을 붙여도 과거 달의 취수가 바뀌지 않는다.
+        fut_flag = np.arange(len(months)) >= n_hist
+        grp = [(int(y), float(v), bool(f)) for y, v, f in zip(yr, a, fut_flag)]
+        for g in dict.fromkeys(grp):
+            k = np.array([x == g for x in grp])
+            sw_g = 10 ** p["log10_sw"] * 1000.0 * g[1] * n_ag * (k.sum() / 12.0)   # mm × 칸
+            sw[k] = sw_g * tot[k] / max(tot[k].sum(), 1e-9)
         frac_gw = np.clip(1 - sw / np.maximum(tot, 1e-9), 0.0, 1.0)
         gw = need * frac_gw[:, None, None]                            # 지하수로 채우는 양 mm/달
         q = gw / 1000.0 / days[:, None, None] * MCELL * MCELL         # m3/일/칸

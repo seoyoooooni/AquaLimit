@@ -1,5 +1,6 @@
 raw/
 __pycache__/
 *.pyc
-real/log.txt
-real/results*/ckpt_*.json
+log*.txt
+results*/ckpt_*.json
+.venv/
