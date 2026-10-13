@@ -16,8 +16,8 @@ Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하�
 | 단계 | 결과 문서 | 한 줄 요약 |
 |---|---|---|
 | 1. 자료 확보 | 이 문서 1절 | InSAR 측정점 74,944개, 관측정 30곳, GPS 5곳, 강수, 유전 경계, CVHM2 층 구조 |
-| 2. 역산 + GPS 검증 (이전 버전) | [results_uniform/RESULTS.md](results_uniform/RESULTS.md) | GPS 침하 예측 오차 **467mm(E2) → 20.5mm(E3)**, 구조 오차를 더한 E4 90% 범위가 GPS 94% 포함(평균 폭 65mm) |
-| 2. 역산 + GPS 검증 (새 버전) | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **59.2mm(E2) → 25.2mm(E3)**, E4 범위 GPS 100% 포함이지만 평균 폭 265mm로 너무 넓음 |
+| 2. 역산 + GPS 검증 (이전 버전) | [results_uniform/RESULTS.md](results_uniform/RESULTS.md) | GPS 침하 예측 오차 **467mm(E2) → 20.5mm(E3)**, 구조 오차를 더한 E4 90% 범위가 GPS 94% 포함(평균 폭 65mm). 단순 예측 비교: 변화 0 22.1mm, 2015~2022 InSAR 추세 연장 7.2mm |
+| 2. 역산 + GPS 검증 (새 버전) | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **59.2mm(E2) → 25.2mm(E3)**(변화 0 예측 22.1mm보다 나쁨), E4 범위 GPS 100% 포함이지만 평균 폭 265mm로 너무 넓음 |
 | 3. 취수 계획 (이전 버전) | [results_plan/RESULTS.md](results_plan/RESULTS.md) | 계획에 쓴 30개 기준 초과 확률 E1 100% · E3 63% · E4 0%(정의상). **계획에 안 쓴 30개로 다시 잰 값은 [RESULTS_oos.md](results_plan/RESULTS_oos.md)** |
 | 3+. 날씨 시나리오 (이전 버전) | [results_plan/RESULTS_weather.md](results_plan/RESULTS_weather.md) | 배경 침하 습한 해 2.0 / 평년 2.7 / 가뭄 해 3.9mm(3개월). 평년 계획은 가뭄 해에 초과 확률 43%(계획에 쓴 30개 기준) |
 | 4. AI 대리모델 (이전 버전) | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW면 약 15시간) |
@@ -93,6 +93,10 @@ Google Colab: `AquaLimit_real_colab.ipynb`를 열고 **런타임 → 모두 실�
 - 사업자 우물 6개의 위치·용량·비용은 가정이다. 실제 운영 개선이 아니라 실제 자료로 보정한 모델에서의 시뮬레이션 결과다.
 - CVHM2의 지연 배수 압축층은 비지연으로 단순화했고, 13개 층을 4개로 합쳤다.
 - E3는 수로 남쪽(Q208)의 2025년 이후 침하 가속을 과소평가한다(E4 범위 밖으로 나가는 시점이 있음).
+- 검증 기간 GPS 예측은 2015~2022 InSAR 추세를 그대로 연장한 단순 예측(7.2mm)보다 덜 정확하다. 모델이 최근 침하 속도를 작게 본다. 원인 후보: 2015년을 평형 상태로 시작(잔류 침하 없음), 지연 배수 단순화, 경계 수위 고정.
+- E4 90% 범위는 앙상블 5~95% 끝에 구조 오차 1.645σ를 다시 더하는 방식이라 실제 90%보다 넓다. 포함률 94%는 높게 나왔을 수 있다.
+- 가정한 계획 우물 6개(수로 동쪽 약 3km)는 관리기관의 취수 금지구역(수로 양쪽 4km) 안이다. 계산 시연용이다.
+- 새 버전(et) E3의 세립질 투수계수 Kf 6.29m/일은 사전범위 상한에 붙은 값으로 물리적으로 비현실적이다(다른 구조 오차를 메우는 신호).
 - 원본 자료(`raw/`, 약 270MB)는 git에서 뺐다. `fetch_data.py`로 다시 받을 수 있다.
 
 ## 출처
