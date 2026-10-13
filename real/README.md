@@ -1,112 +1,83 @@
-# 실제 검증 지역 자료 (California Aqueduct MP 195~215)
+# 실제 검증 지역 (California Aqueduct MP 195~215)
 
-> 10/12 확보. 가상 대수층(synthetic/)에서 쓰던 "가짜 위성·관측정 자료" 자리에 들어갈 **실제 공개 자료**다.
+Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하수·침하 물리모델을 만들고, 보정에 쓰지 않은 **GPS로 예측을 검증**한 뒤, 침하 기준을 지키는 취수 계획과 AI 대리모델까지 만든 폴더다.
 
-## 범위
-
-- 위도 35.50~35.78°, 경도 -119.92~-119.58° (약 31km × 31km), Kern County Subbasin 서부, Lost Hills 주변
-- California Aqueduct 반복구간 Reach 9 · 10A · 11B (MP 184.8~217.8)가 지역을 북서→남동으로 지난다
-
-![침하 속도 지도](figures/real-1-velocity-map.png)
-
-## 확보한 자료
-
-| 자료 | 내용 | 파일 |
+| 단계 | 결과 문서 | 한 줄 요약 |
 |---|---|---|
-| InSAR 수직 변위 | DWR TRE Altamira(Sentinel-1) 측정점 **74,944개**, 2015.1~2026.4, 약 6일 간격, 단위 mm | `data/insar_points_velocity.csv`(점별 속도), `data/insar_grid500m_monthly.npz`(500m 격자 3,619칸 × 136개월) |
-| 지하수위 | DWR 정기 측정, 자료가 있는 관측정 **30곳**, 측정 1,831건(2014.1~2026.7) | `data/wells.csv`, `data/gwl_measurements.csv` |
-| 수로 선형 | SWP 반복구간(시점·종점 이정표 포함) | `data/aqueduct_mp185_218.geojson` |
-| 정밀측량점 | 수로 정밀측량 표석 83개 위치(독립 검증용 후보) | `data/precise_survey_marks.geojson` |
-| 유전 경계 | CalGEM 유전 11곳(Lost Hills, Belridge 등) | `data/oil_fields_in_box.geojson` |
-
-## 처음 본 결과
-
-| 항목 | 값 |
-|---|---|
-| 지역 전체 침하 속도 | 중앙값 -6.0 mm/년, 하위 5% -37.7 mm/년 |
-| 수로 2km 이내(유전 밖 268칸) 침하 속도 | 중앙값 **-15.3 mm/년**, 최대 -38.2 mm/년 |
-| 수로 2km 이내 누적 침하(2015.6 → 2026.4) | 중앙값 **-60 mm**, 최대 **-256 mm** (※ 2023년 이후 InSAR는 GPS보다 침하를 작게 보여 실제보다 작을 수 있음, 아래 참고) |
-| 수로 옆 다층 관측정 주변 격자 | -23.6 mm/년, 누적 -189 mm |
-
-![침하와 수위](figures/real-2-timeseries.png)
-
-- 수로를 따라 11년 동안 꾸준히 침하가 진행됐다. 가상 실험의 "월 6mm 기준"과 비교하면, 연 15~38mm(월 1.3~3.2mm)라는 실제 침하 규모를 확인할 수 있다.
-- 가장 강한 침하는 지역 북동쪽(밸리 바닥 농경지, 연 40~55mm)에서 나타난다. 서쪽 언덕 지대는 거의 움직이지 않는다.
-
-## 새로 발견한 문제 두 가지
-
-**1. 유전 침하가 섞여 있다.** 수로 2km 이내 격자 440칸 중 172칸(39%)이 Lost Hills·Belridge 유전 경계 안에 있다. 지도에서 유전 안의 길쭉한 진한 빨간 띠는 석유 생산으로 생긴 침하일 가능성이 높다. 이걸 지하수 침하로 보고 역산하면 압축성을 과대추정한다.
-→ 대응: 유전 안 격자는 역산에서 빼거나(현재 통계는 제외 기준), 별도 침하원으로 모델에 넣는다.
-
-**2. 수로 옆 관측정은 최근에 생겼다.** 수로에서 0.1km 이내 다층 관측정 4곳(깊이별 3~5개 스크린)은 2023~2025년에 설치됐다. 2014년부터 기록이 있는 장기 관측정 7곳은 수로에서 4.6~8.6km 떨어져 있다.
-→ 대응: 다층 관측정은 층별 수위(CSUB 다층 모델)에 아주 좋은 자료다. 대신 수로 주변의 E2(관측정만) vs E3(+위성) 비교는 2023~2025.6 보정, 2025.7~2026.4 검증으로 기간을 맞춘다.
-
-## 모델 역산과 GPS 검증 (10/12)
-
-실제 자료로 MODFLOW 6 + CSUB 모델을 보정하고, 보정에 쓰지 않은 **수로 GPS로 예측을 채점**했다. 결과: [results/RESULTS.md](results/RESULTS.md)
+| 1. 자료 확보 | 이 문서 1절 | InSAR 측정점 74,944개, 관측정 30곳, GPS 5곳, 강수, 유전 경계, CVHM2 층 구조 |
+| 2. 역산 + GPS 검증 | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **467mm(E2) → 20.5mm(E3)**, E4 90% 범위가 GPS 94% 포함 |
+| 3. 취수 계획 | [results_plan/RESULTS.md](results_plan/RESULTS.md) | 기준 초과 확률 E1 100% · E3 63% · **E4 0%** (비용 117 / 98 / 153천$) |
+| 3+. 날씨 시나리오 | [results_plan/RESULTS_weather.md](results_plan/RESULTS_weather.md) | 배경 침하 습한 해 2.0 / 평년 2.7 / 가뭄 해 3.9mm(3개월). 평년 계획은 가뭄 해에 초과 확률 43%, 세 시나리오 모두 고려하면 0%(비용 +38%) |
+| 4. AI 대리모델 | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW면 약 15시간) |
+| 비교: 가정 층 구조 | [results_simple/RESULTS.md](results_simple/RESULTS.md) | CVHM2 대신 단순 3개 층을 가정했을 때(10/12 첫 버전) |
 
 ![GPS 검증](results/real-3-gps-validation.png)
 
-| 방식 | 검증 기간(2023.1~2026.4) GPS 침하 오차 | 관측정 수위 오차 |
+## 1. 자료
+
+![침하 속도 지도](figures/real-1-velocity-map.png)
+
+| 자료 | 내용 | 파일 |
 |---|---|---|
-| E2 관측정만 | 54.0 mm | 12.72 m |
-| **E3 관측정 + 위성** | **17.5 mm** | **3.12 m** |
-| E4 + 불확실성 | 17.6 mm (90% 범위가 GPS를 30%만 포함 — 범위가 너무 좁음) | 3.12 m |
+| InSAR 수직 변위 | DWR TRE Altamira(Sentinel-1) 측정점 74,944개, 2015.1~2026.4, 약 6일 간격, mm | `data/insar_points_velocity.csv`, `data/insar_grid500m_monthly.npz` |
+| 지하수위 | DWR 정기 측정 관측정 30곳, 1,831건 | `data/wells.csv`, `data/gwl_measurements.csv` |
+| GPS 수직 위치 | 수로 GPS 5곳(Nevada Geodetic Lab, IGS20) — **검증 전용** | `data/gps_monthly.csv` |
+| 강수 | NOAA Lost Hills·Buttonwillow 관측소 월 강수(함양) | `data/precip_monthly.csv` |
+| 층 구조·지질 | USGS CVHM2 13개 층 → 4개 묶음(상부 대수층 / 코코란 점토 / 하부 대수층 위·아래), 조립질 비율, 압축 점토 두께 | `data/cvhm2_box.npz` (`fetch_cvhm2.py`로 생성) |
+| 수로·측량점·유전 | SWP 반복구간 선형, 정밀측량점, CalGEM 유전 경계 | `data/*.geojson` |
 
-- **위성을 넣으면 실제 관측으로 확인한 예측 오차가 약 3분의 1로 줄었다.**
-- E4 불확실성 범위가 너무 좁다. 가상 실험(synthetic/results_mf6)과 같은 원인: 모델 구조 오차를 반영하지 못함.
+### 자료에서 발견한 것
 
-### 2023년 이후 InSAR와 GPS 불일치 (중요)
+- **유전 침하가 섞여 있다.** 수로 2km 이내 격자 39%가 Lost Hills·Belridge 유전 안이다. 석유 생산 침하를 지하수 침하로 오인하지 않도록 유전 격자는 역산·취수에서 뺐다.
+- **2023년 이후 InSAR와 GPS가 어긋난다.** 2015~2022년에는 잘 맞지만(P544 2022.6: GPS 47mm, InSAR 38mm 침하) 2023년 이후 InSAR는 지반이 올라가고 GPS는 계속 침하한다(P544 2025.12: GPS 72mm, InSAR 33mm). 2023년 이후 InSAR는 쓰지 않고 GPS로 검증했다. 공개 위성 자료도 GPS로 교차 검증하는 **자료 품질 검사**가 서비스에 필요하다.
+- **수로 옆 관측정은 최근에 생겼다.** 다층 관측정 4곳은 2023~2025년 설치, 장기 관측정(2014~)은 수로에서 4.6~8.6km.
 
-수로 GPS 5곳(NGL 처리)과 비교하면, 2015~2022년에는 InSAR와 GPS가 잘 맞지만(P544 2022.6: GPS 47mm, InSAR 38mm 침하) **2023년 이후 InSAR는 지반이 올라가는 것으로 나오고 GPS는 계속 침하한다**(P544 2025.12: GPS 72mm, InSAR 33mm). 그래서 2023년 이후 InSAR는 보정·검증에서 뺐다. 원인은 확인하지 못했다(InSAR 처리 갱신 문제로 추정).
+## 2. 모델
 
-### 실행
+- MODFLOW 6 + CSUB, 1km 격자 32×31, 4개 층 묶음(CVHM2), 2015.7~2026.4 월 단위
+- 압축층: 과거 최저 수위(선행압밀수위) 아래로 내려가면 비탄성(영구) 압축. 계수는 CVHM2 값(비탄성 4.4e-4/m, 탄성 2.5e-5/m) × 구역별 보정 배수(역산)
+- 함양 = 강수 × 비율(역산), 농경지(수로 동쪽) 취수 = 기본량 × 관개기(4~9월) × 가뭄 계수(역산) — 관정별 기록이 공개되지 않아 크기를 역산
+- 역산: 가우스-뉴턴 최소제곱(파라미터 15개), 불확실성: 선형화 사후분포 앙상블 + 되돌아보기 검증으로 잰 모델 구조 오차
+
+## 3. 실행
 
 ```bash
 cd real
-python3 run_real.py            # 약 10~15분 (MODFLOW 6 필요: get-modflow :flopy)
+pip install -r requirements.txt
+get-modflow :flopy                 # MODFLOW 6 실행파일 설치
+python3 fetch_cvhm2.py             # (선택) CVHM2 층 구조 다시 만들기, 334MB 내려받음. 결과 npz는 이미 들어 있음
+python3 run_real.py                # 역산 + GPS 검증 → results/        약 1시간
+python3 run_plan.py                # 취수 계획 E1~E4 → results_plan/  약 20분
+python3 run_weather.py             # 날씨 시나리오(가뭄·평년·습한 해) → results_plan/  약 25분
+python3 surrogate_real.py          # AI 대리모델 → results_ai/        약 40~60분
+streamlit run app_real.py          # 데모 화면
 ```
 
-또는 Google Colab에서 `AquaLimit_real_colab.ipynb`를 열고 **런타임 → 모두 실행**. 셀마다 한국어 설명이 있다.
+Google Colab: `AquaLimit_real_colab.ipynb`를 열고 **런타임 → 모두 실행**(저장된 결과 보기 약 3분, `RECOMPUTE = True`면 전체 재계산).
 
 | 파일 | 역할 |
 |---|---|
-| `real_model.py` | 자료 읽기, MODFLOW 모델 생성·실행, 역산(가우스-뉴턴), 불확실성 앙상블, 평가 |
-| `run_real.py` | E2·E3·E4 실행 → `results/` 표·그림 |
-| `AquaLimit_real_colab.ipynb` | 같은 과정을 Colab에서 단계별로 실행 |
-| `data/gps_monthly.csv` | GPS 5곳 월별 수직 위치(검증용) |
-| `data/precip_monthly.csv` | NOAA 관측소 2곳 월 강수(함양 계산) |
+| `real_model.py` | 자료 읽기, MODFLOW 모델(CVHM2 구조 / 단순 구조), 역산, 불확실성, 평가 |
+| `run_real.py` | E2·E3·E4 역산 + GPS 검증 → `results/` |
+| `plan_real.py`, `run_plan.py`, `run_weather.py` | 취수 계획(선형계획, 강건 제약, 임계수위), 날씨 시나리오 → `results_plan/` |
+| `surrogate_real.py` | AI 대리모델 학습·검증·활용 → `results_ai/` |
+| `app_real.py` | Streamlit 데모 |
+| `fetch_data.py`, `prepare_insar.py`, `fetch_cvhm2.py` | 자료 수집·가공 |
+| `AquaLimit_real_colab.ipynb` | Colab 노트북 |
 
-## 자료 재현
+## 4. 한계
 
-```bash
-cd real
-python3 fetch_data.py      # 원본을 raw/에 받음(약 270MB, git 제외). InSAR는 5GB zip에서 필요한 부분만 range 요청으로 받음
-python3 prepare_insar.py   # data/·figures/ 생성
-```
-
-필요 패키지: numpy, pandas, matplotlib, shapely
-
-## 파일 해시 (수집일 2026-10-12)
-
-| 파일 | sha256(앞 12자) |
-|---|---|
-| `data/SUMMARY.json` | `b687c84dbde3` |
-| `data/aqueduct_mp185_218.geojson` | `31c36d037713` |
-| `data/gwl_measurements.csv` | `78d58417fa00` |
-| `data/insar_grid500m_cells.csv` | `1cddc97c6601` |
-| `data/insar_grid500m_monthly.npz` | `d12352e11a9b` |
-| `data/insar_points_velocity.csv` | `5d592ab03988` |
-| `data/oil_fields_in_box.geojson` | `663666cfec7d` |
-| `data/precise_survey_marks.geojson` | `0f8f5b6a2f88` |
-| `data/wells.csv` | `57fec32e8ac1` |
+- 사업자 우물 6개의 위치·용량·비용은 가정이다. 실제 운영 개선이 아니라 실제 자료로 보정한 모델에서의 시뮬레이션 결과다.
+- CVHM2의 지연 배수 압축층은 비지연으로 단순화했고, 13개 층을 4개로 합쳤다.
+- E3는 수로 남쪽(Q208)의 2025년 이후 침하 가속을 과소평가한다(E4 범위 밖으로 나가는 시점이 있음).
+- 원본 자료(`raw/`, 약 270MB)는 git에서 뺐다. `fetch_data.py`로 다시 받을 수 있다.
 
 ## 출처
 
-- DWR TRE Altamira InSAR: https://data.cnra.ca.gov/dataset/tre-altamira-insar-subsidence (단위·처리 방법: April 2026 Update 보고서)
+- DWR TRE Altamira InSAR: https://data.cnra.ca.gov/dataset/tre-altamira-insar-subsidence
 - DWR 정기 지하수위: https://data.cnra.ca.gov/dataset/periodic-groundwater-level-measurements
-- SWP 반복구간: https://data.cnra.ca.gov/dataset/i17-statewaterproject-repayment-reaches
-- SWP 정밀측량점: https://data.cnra.ca.gov/dataset/i06-precise-surveys-statewaterproject
+- GPS(Nevada Geodetic Laboratory): https://geodesy.unr.edu
+- 강수(NOAA GHCN-Daily): https://www.ncei.noaa.gov
+- USGS CVHM2: Traum, Faunt, Boyce (2024), https://doi.org/10.5066/P14N8VFT ; Faunt 외 (2024), Water 16(8):1189
+- SWP 반복구간·정밀측량점: https://data.cnra.ca.gov/dataset/i17-statewaterproject-repayment-reaches
 - CalGEM 유전 경계: https://data.cnra.ca.gov/dataset/oil-and-gas-field-administrative-boundaries1
-- GPS 수직 위치(Nevada Geodetic Laboratory, IGS20): https://geodesy.unr.edu
-- 강수(NOAA GHCN-Daily, Lost Hills USC00045151·Buttonwillow USC00041244): https://www.ncei.noaa.gov

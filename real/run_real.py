@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import real_model as r
 
-OUT = r.HERE / "results"; OUT.mkdir(exist_ok=True)
+OUT = r.HERE / ("results" if r.STRUCTURE == "cvhm2" else "results_simple"); OUT.mkdir(exist_ok=True)
 for p in ["/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"]:
     try: font_manager.fontManager.addfont(p)
     except Exception: pass
@@ -25,24 +25,48 @@ def main(n_iter=6, n_post=30):
     t0 = time.time()
     site = r.load_site()
     res = {}
-    print("[E2] 관측정 수위만으로 역산"); th2, cov2, h2 = r.calibrate(site, use_insar=False, n_iter=n_iter)
-    print("[E3] 관측정 수위 + 위성(InSAR)으로 역산"); th3, cov3, h3 = r.calibrate(site, use_insar=True, n_iter=n_iter)
+    cache_f = OUT / "calib_cache.json"
+    cache = json.load(open(cache_f)) if cache_f.exists() else {}
+    def cal(key, msg, **kw):                      # 역산 결과를 바로 저장(중간에 멈춰도 다시 계산하지 않게)
+        if key in cache:
+            print(f"{msg} (저장된 결과 사용)")
+            c = cache[key]; return np.array(c["th"]), np.array(c["cov"]), c["hist"]
+        print(msg)
+        th, cov, h = r.calibrate(site, n_iter=n_iter, **kw)
+        cache[key] = {"th": th.tolist(), "cov": cov.tolist(), "hist": h}
+        json.dump(cache, open(cache_f, "w"), default=float)
+        return th, cov, h
+    th2, cov2, h2 = cal("E2", "[E2] 관측정 수위만으로 역산", use_insar=False)
+    th3, cov3, h3 = cal("E3", "[E3] 관측정 수위 + 위성(InSAR)으로 역산", use_insar=True)
     print("[E4] E3 사후분포에서 앙상블 실행"); M4, o4 = r.posterior_ensemble(site, th3, cov3, n=n_post)
     print("[E2 앙상블] 비교용"); M2, o2 = r.posterior_ensemble(site, th2, cov2, n=n_post, seed=1)
+    thh, _, _ = cal("H2019", "[E4 구조 오차] 2015.7~2019.12로 보정 → 2020~2022 InSAR 예측 오차 측정", use_insar=True, cal_end="2019-12")
+    err = r.forecast_error(site, thh)
+    err_all = r.forecast_error(site, thh, near_km=None)
+    print("  구조 오차(수로 2km):", err, "\n  (지역 전체):", err_all)
     o2pt, o3pt = r.run_model(site, th2), r.run_model(site, th3)
     res["E2"] = r.evaluate(site, [o2pt]); res["E3"] = r.evaluate(site, [o3pt])
-    res["E4"] = r.evaluate(site, o4); res["E2_ens"] = r.evaluate(site, o2)
+    res["E4"] = r.evaluate(site, o4, err=err); res["E2_ens"] = r.evaluate(site, o2)
+    res["model_error"] = err; res["model_error_all_region"] = err_all
+    res["n_members"] = {"E4": len(o4), "E2_ens": len(o2)}
+    np.save(OUT / "E4_members.npy", M4)
     res["params"] = {"names": r.NAMES, "prior": r.PRIOR_MEAN.tolist(), "E2": th2.tolist(), "E3": th3.tolist(),
                      "E2_sd": np.sqrt(np.diag(cov2)).tolist(), "E3_sd": np.sqrt(np.diag(cov3)).tolist()}
+    res["params"]["E3_cov"] = cov3.tolist(); res["params"]["E2_cov"] = cov2.tolist(); res["params"]["hindcast_2019"] = thh.tolist()
     res["history"] = {"E2": h2, "E3": h3}
     res["minutes"] = round((time.time() - t0) / 60, 1)
     json.dump(res, open(OUT / "results.json", "w"), ensure_ascii=False, indent=1, default=float)
-    figures(site, o2pt, o3pt, o4, o2)
+    figures(site, o2pt, o3pt, o4, o2, err)
     report(res)
     print((OUT / "RESULTS.md").read_text(encoding="utf-8"))
 
 
-def figures(site, o2, o3, o4, o2e):
+ERR = None
+
+
+def figures(site, o2, o3, o4, o2e, err=None):
+    global ERR
+    ERR = err
     months = site["months"]; t = months[1:].to_timestamp(how="end")
     gps = site["gps"]
     sts = [s for s in ["P544", "Q204", "Q208"] if s in set(gps.station)]
@@ -56,8 +80,14 @@ def figures(site, o2, o3, o4, o2e):
         ref = g.month.iloc[0]; kr = list(months).index(ref)
         def model(o): S = o[0][:, iy, ix]; return S - (S[kr - 1] if kr > 0 else 0)
         E4 = np.array([model(o) for o in o4])
-        ax.fill_between(t, np.percentile(E4, 5, 0), np.percentile(E4, 95, 0), color="#2166ac", alpha=0.18, label="E4 90% 범위")
-        ax.plot(t, model(o2), color="#999", lw=1.6, ls="--", label="E2 수위만")
+        k0 = list(months).index(pd.Period(r.CAL_END, "M"))
+        lead = np.maximum((np.arange(1, len(months)) - k0) / 12.0, 0)
+        sd = np.sqrt(ERR["s0_mm"] ** 2 + (ERR["b_mm_per_yr"] * lead) ** 2) if ERR else 0 * lead
+        sd = np.where(np.arange(1, len(months)) > k0, sd, 0)
+        ax.fill_between(t, np.percentile(E4, 5, 0) - 1.645 * sd, np.percentile(E4, 95, 0) + 1.645 * sd,
+                        color="#2166ac", alpha=0.12, label="E4 90% 범위(구조 오차 포함)")
+        ax.fill_between(t, np.percentile(E4, 5, 0), np.percentile(E4, 95, 0), color="#2166ac", alpha=0.25, label="E4 90% 범위(파라미터만)")
+        ax.plot(t, model(o2), color="#999", lw=1.6, ls="--", label="E2 수위만(범위 밖은 잘림)")
         ax.plot(t, model(o3), color="#2166ac", lw=2, label="E3 수위+위성")
         ax.plot(g.month.dt.to_timestamp(how="end"), -(g.up_mm - g.up_mm.iloc[0]), "k.", ms=4, label="GPS 관측(검증용)")
         # InSAR(같은 1km 격자 평균)
@@ -65,6 +95,10 @@ def figures(site, o2, o3, o4, o2e):
         if len(sel):
             ins = np.nanmean(site["disp"][sel], 0); ins = ins - (ins[kr] if kr < len(ins) else 0)
             ax.plot(months.to_timestamp(how="end"), ins, color="#d6604d", lw=1, alpha=0.8, label="InSAR(DWR)")
+        ref_vals = np.concatenate([-(g.up_mm - g.up_mm.iloc[0]).to_numpy(), model(o3), np.percentile(E4, 5, 0) - 1.645 * sd,
+                                   np.percentile(E4, 95, 0) + 1.645 * sd])
+        lo_, hi_ = np.nanmin(ref_vals), np.nanmax(ref_vals); pad = 0.1 * (hi_ - lo_ + 1)
+        ax.set_ylim(lo_ - pad, hi_ + pad)
         ax.axvline(cal_end, color="#555", lw=0.8, ls=":"); ax.text(cal_end, ax.get_ylim()[1], " 보정 | 검증", fontsize=8, va="top")
         ax.set_title(f"GPS {st}", fontsize=11); ax.set_ylabel("침하 (mm, 아래로 +)")
         ax.invert_yaxis() if False else None
@@ -92,12 +126,16 @@ def fmt(v, d=1):
 
 
 def report(res):
+    struct = ("USGS CVHM2 층 구조·지질(4개 층 묶음, 압축 계수는 CVHM2 값 × 구역별 보정 배수)" if r.STRUCTURE == "cvhm2"
+              else "가정한 단순 3개 층")
     L = ["# 실제 검증 지역 결과 (California Aqueduct MP 195~215)\n",
-         "MODFLOW 6 + CSUB 모델(1km 격자, 3개 층)을 실제 자료로 역산했다. 보정: 2015.7~2022.12 (InSAR + 관측정), "
+         f"모델 구조: **{struct}**.\n",
+         "MODFLOW 6 + CSUB 모델(1km 격자)을 실제 자료로 역산했다. 보정: 2015.7~2022.12 (InSAR + 관측정), "
          "검증: 2023.1~2026.4 (**독립 자료**: 수로 GPS 수직 변위 + 관측정 수위). "
          "2023년 이후 DWR InSAR는 GPS와 크게 어긋나 검증에 쓰지 않았다(아래 3절).\n",
          "## 1. 검증 기간 예측 오차 (관측으로 확인한 성능)\n",
          "| 방식 | GPS 침하 RMSE (mm) | 관측정 수위 RMSE (m) | GPS 90% 범위 포함률 | 수위 90% 범위 포함률 |", "|---|---|---|---|---|"]
+    pct = lambda x: "-" if x is None else f"{x * 100:.0f}%"
     rows = [("E2 관측정만 (추정값 1개)", res["E2"]), ("E3 관측정 + 위성 (추정값 1개)", res["E3"]),
             ("E2 앙상블", res["E2_ens"]), ("E4 관측정 + 위성 + 불확실성(앙상블)", res["E4"])]
     for name, v in rows:
@@ -106,7 +144,15 @@ def report(res):
                  f"{fmt(x.get('gps_cov90') and x['gps_cov90'] * 100, 0)}{'%' if x.get('gps_cov90') is not None else ''} | "
                  f"{fmt(x.get('head_cov90') and x['head_cov90'] * 100, 0)}{'%' if x.get('head_cov90') is not None else ''} |")
     v = res["E3"]["val"]
-    L.append(f"\nGPS {v['n_gps']}개(월 값), 수위 {v['n_head']}개.\n")
+    L.append(f"\nGPS {v['n_gps']}개(월 값), 수위 {v['n_head']}개. 앙상블 성공 구성원: {res.get('n_members', {})}.\n")
+    if res.get("model_error"):
+        me = res["model_error"]; e4 = res["E4"]["val"]
+        L += ["### E4 범위에 모델 구조 오차 더하기\n",
+              "2015.7~2019.12 자료로만 보정한 모델로 2020~2022 InSAR를 예측해 보고(되돌아보기 검증), 예측 기간이 길어질수록 오차가 커지는 정도를 쟀다: "
+              f"오차 표준편차 ≈ √({me['s0_mm']:.1f}² + ({me['b_mm_per_yr']:.1f} × 예측 연수)²) mm. 이 오차를 E4 앙상블 범위에 더했다.\n",
+              "| E4 90% 범위 | GPS 포함률 | 평균 범위 폭 |", "|---|---|---|",
+              f"| 파라미터 불확실성만 | {pct(e4.get('gps_cov90'))} | - |",
+              f"| + 모델 구조 오차 | **{pct(e4.get('gps_cov90_with_model_error'))}** | {e4.get('gps_band90_mean_width_mm', 0):.0f} mm |", ""]
     L += ["## 2. 보정 기간 적합도\n", "| 방식 | InSAR RMSE (mm) | 수위 RMSE (m) |", "|---|---|---|"]
     for name, k in [("E2 관측정만", "E2"), ("E3 관측정 + 위성", "E3")]:
         x = res[k]["cal"]
@@ -126,8 +172,8 @@ def report(res):
           f"관측정 수위 오차 {e2['head_rmse']:.2f}m → {e3['head_rmse']:.2f}m. 보정에 쓰지 않은 독립 GPS로 확인한 결과다.",
           "- E2(수위만)는 관측정이 적어(2023년 이전 장기 관측정 7곳) 땅속 성질을 정하지 못하고 사전범위 끝값으로 간다(3절 E2 열). "
           "수위는 어느 정도 맞추지만 침하 공간 분포는 전혀 맞지 않는다(그림 real-4).",
-          f"- **E4 불확실성 범위가 너무 좁다.** 90% 범위가 GPS를 {e4.get('gps_cov90', 0) * 100:.0f}%만 포함했다. "
-          "가상 실험(10/12)과 같은 문제다: 앙상블이 관측 잡음만 반영하고 모델 구조 오차(층 단순화, 3×3 구역, 취수 분포 가정)를 반영하지 못한다.",
+          f"- **파라미터 불확실성만으로는 E4 범위가 너무 좁다.** 90% 범위가 GPS를 {e4.get('gps_cov90', 0) * 100:.0f}%만 포함했다(가상 실험과 같은 문제). "
+          + (f"되돌아보기 검증으로 잰 모델 구조 오차를 더하면 {e4['gps_cov90_with_model_error'] * 100:.0f}%가 된다." if e4.get("gps_cov90_with_model_error") is not None else ""),
           "- E3는 수로 남쪽(Q204·Q208)의 2023년 이후 침하 속도를 실제보다 작게 예측했다. 취수 분포를 농경지 전체에 고르게 둔 가정 때문일 가능성이 크다.\n",
           "## 5. 자료 품질: 2023년 이후 InSAR와 GPS 불일치\n",
           "- 2015~2022년에는 DWR InSAR와 GPS P544가 잘 맞는다(2022.6 기준 GPS 47mm, InSAR 38mm 침하).",
@@ -135,7 +181,11 @@ def report(res):
           "- InSAR 처리 갱신(최근 2년치 재처리) 과정의 문제로 보이며 원인은 확인하지 못했다. 그래서 2023년 이후 InSAR는 보정·검증 모두에서 뺐다.",
           "- 사업 관점: 공개 InSAR도 GPS로 교차 검증하는 **자료 품질 검사**가 서비스 기능으로 필요하다.\n",
           "## 6. 가정과 한계\n",
-          "- 층 구조(상부 60m / 차수층 20m / 하부 220m, 압축층 60m)는 단순화한 가정값이다. CVHM2 층 구조 반영은 다음 단계.",
+          ("- 층 구조와 지질은 USGS CVHM2(Traum 외, 2024)에서 가져왔다: 13개 층을 4개 묶음(상부 대수층 / 코코란 점토 / 하부 대수층 위·아래)으로 합치고, "
+           "각 칸의 조립질 비율로 투수계수를, 세립질 두께와 CVHM2 압축 계수(비탄성 4.4e-4/m, 탄성 2.5e-5/m)로 압축층을 만들었다. "
+           "역산은 구역별 보정 배수(3×3)와 투수계수·취수·함양만 추정한다. CVHM2의 지연 배수 압축층은 비지연으로 단순화했다."
+           if r.STRUCTURE == "cvhm2" else
+           "- 층 구조(상부 60m / 차수층 20m / 하부 220m, 압축층 60m)는 단순화한 가정값이다."),
           "- 관정별 취수 기록이 없어 '수로 동쪽 농경지 전체에 고르게, 관개기(4~9월)에 많이, 가뭄 해에 더' 취수한다고 두고 그 크기를 역산했다.",
           "- 함양 = 강수 × 비율(역산). 강수는 NOAA Lost Hills·Buttonwillow 관측소 월 강수(결측은 월 평년값).",
           "- 관측정 수위는 관측정별 첫 측정 대비 변화로 비교했다. 장기 관측정의 큰 계절 변동(수십 m)은 모델이 재현하지 못한다.",
