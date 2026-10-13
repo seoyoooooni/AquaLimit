@@ -15,7 +15,8 @@ import real_model as r
 import plan_real as p
 import run_real as rr          # 글꼴 설정
 
-OUT = r.HERE / "results_plan"; OUT.mkdir(exist_ok=True)
+OUT = r.result_dir("plan")
+MODEL = r.result_dir("model", create=False)
 NAMES = {"E1": "E1 기존 방식(용량 비례)", "E2": "E2 관측정만", "E3": "E3 관측정 + 위성", "E4": "E4 + 불확실성(강건)",
          "E4H": "E4 + 임계수위 유지"}
 
@@ -23,9 +24,10 @@ NAMES = {"E1": "E1 기존 방식(용량 비례)", "E2": "E2 관측정만", "E3":
 def main():
     t0 = time.time()
     site = r.load_site()
-    res = json.load(open(r.HERE / "results" / "results.json"))
+    r.check_version(MODEL); r.check_version(OUT); r.write_version(OUT)
+    res = json.load(open(MODEL / "results.json"))
     th2, th3 = np.array(res["params"]["E2"]), np.array(res["params"]["E3"])
-    M4 = np.load(r.HERE / "results" / "E4_members.npy")
+    M4 = np.load(MODEL / "E4_members.npy")
     pts, wells = p.mgmt_points(site), p.operator_wells(site)
     print(f"관리지점 {len(pts)}곳, 계획 우물 {len(wells)}개, E4 구성원 {len(M4)}개")
 
@@ -118,9 +120,11 @@ def report(o):
          f"외부 용수 {s['price_per_m3']}$/m³(한도 {s['purchase_cap_m3']:,.0f} m³). 관리 기준: 계획으로 인한 수로 칸({s['n_points']}곳) 추가 침하 ≤ **{s['limit_mm']}mm/3개월**. "
          f"참고로 배경 침하(다른 농가 취수)만으로 수로 칸 중앙값 {o['background_sub_mm']['median']:.1f}mm, 최대 {o['background_sub_mm']['max']:.1f}mm가 3개월 동안 생긴다.\n",
          "우물 위치·용량·비용은 가정값이다(관정별 실제 기록 비공개). 땅속 성질·배경 취수·함양은 실제 자료로 역산한 값(results/)을 쓴다. "
-         "실제 정답이 없으므로, 각 계획을 **E4 앙상블 30개 모두에서** 계산해 기준 초과 확률로 비교한다.\n",
+         "실제 정답이 없으므로, 각 계획을 **E4 앙상블 30개 모두에서** 계산해 기준 초과 확률로 비교한다. "
+         "주의: E4 계획은 바로 이 30개 모두에서 기준을 지키도록 만든 것이라 E4의 0%는 정의상 0%다(표본 내 값). "
+         "계획에 쓰지 않은 땅속 상태로 다시 잰 값은 `eval_plan_oos.py` 결과(RESULTS_oos.md)를 본다.\n",
          "## 1. 계획 비교\n",
-         "| 방식 | 실행 가능 | 총비용(천$) | 외부 구매(천 m³) | 최대 추가 침하 평균(mm) | 상위 5% (mm) | 기준 초과 확률 | 임계수위 아래로 내려갈 확률 |",
+         "| 방식 | 실행 가능 | 총비용(천$) | 외부 구매(천 m³) | 최대 추가 침하 평균(mm) | 상위 5% (mm) | 기준 초과 확률(계획에 쓴 30개) | 임계수위 아래로 내려갈 확률 |",
          "|---|---|---|---|---|---|---|---|"]
     for k, pl in o["plans"].items():
         if not pl["feasible"]:
@@ -129,10 +133,12 @@ def report(o):
         L.append(f"| {NAMES[k]} | 가능 | {pl['cost'] / 1e3:,.0f} | {pl['purchase'] / 1e3:,.0f} | {rk['worst_mean_mm']:.2f} | {rk['worst_p95_mm']:.2f} | "
                  f"{rk['exceed_prob'] * 100:.0f}% | {rk.get('below_crit_prob', 0) * 100:.0f}% |")
     n = o["head_need"]
-    if n["feasible"]:
-        L.append(f"\n임계수위(과거 최저 수위)를 지키려면 외부 용수가 **{n['purchase'] / 1e3:,.0f}천 m³** 필요하다(수요의 {n['purchase'] / s['demand_m3'] * 100:.0f}%, 비용 {n['cost'] / 1e3:,.0f}천$). "
-                 "다른 농가의 배경 취수만으로도 수로 칸 수위가 이미 과거 최저보다 내려가고 있어서, 모든 계획에서 '임계수위 아래로 내려갈 확률'이 100%로 나온다. "
-                 "즉 이 사업자 혼자 우물을 줄여서는 임계수위를 지킬 수 없고, **지역 전체(지하수 관리기관) 차원의 취수 조정이 필요하다**.\n")
+    if n.get("background_below_crit"):
+        L.append(f"\n**임계수위(과거 최저 수위)는 이 사업자의 계획으로 지킬 수 없다.** 계획 우물을 하나도 안 돌리고 수요 전량을 외부에서 사도, "
+                 f"다른 농가의 배경 취수만으로 수로 칸 수위가 이미 과거 최저보다 낮다(앙상블 {n['background_below_crit_frac'] * 100:.0f}%). "
+                 "그래서 모든 계획에서 '임계수위 아래로 내려갈 확률'이 100%로 나온다. **지역 전체(지하수 관리기관) 차원의 취수 조정이 필요하다**.\n")
+    elif n.get("feasible"):
+        L.append(f"\n임계수위를 지키려면 외부 용수가 **{n['purchase'] / 1e3:,.0f}천 m³** 필요하다(수요의 {n['purchase'] / s['demand_m3'] * 100:.0f}%, 비용 {n['cost'] / 1e3:,.0f}천$).\n")
     pl, rk = o["plans"], o["risk"]
     if all(pl[k]["feasible"] for k in ["E1", "E3", "E4"]):
         L += ["### 해석\n",

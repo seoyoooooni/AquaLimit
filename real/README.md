@@ -2,16 +2,30 @@
 
 Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하수·침하 물리모델을 만들고, 보정에 쓰지 않은 **GPS로 예측을 검증**한 뒤, 침하 기준을 지키는 취수 계획과 AI 대리모델까지 만든 폴더다.
 
+## 모델 버전 두 가지
+
+취수량을 어떻게 추정하느냐에 따라 두 버전이 있다. 결과 폴더가 나뉘어 있고, 폴더마다 `model_version.json`에 버전과 파라미터 이름이 적혀 있다. 다른 버전 결과를 읽으려 하면 코드가 멈추고 알려 준다.
+
+| 버전 | 취수 추정 | 실행 | 결과 폴더 |
+|---|---|---|---|
+| **이전 버전(uniform)** | 수로 동쪽 농경지 전체에 고르게 × 관개기 계절 × 가뭄 계수, 크기는 역산 | `AQ_PUMPING=uniform python ...` | `results_uniform/`, `results_plan/`, `results_ai/` |
+| **새 버전(et, 기본)** | Landsat NDVI × gridMET 기준증발산(기온·습도·바람·일사)으로 칸별 작물 증발산 → 비·SWP 수로 물 배분율을 빼고 남는 만큼 지하수 + 위성으로 설명 안 되는 나머지(이전 버전의 균일·계절·가뭄 항)를 역산 | `python ...` | `results/` (계획·AI는 아직 안 만듦) |
+
+취수 계획, 날씨 시나리오, AI 대리모델, 데모 앱은 **이전 버전 모델**로 만든 것이다. 데모 앱(`app_real.py`)은 이전 버전을 읽도록 고정돼 있다.
+
 | 단계 | 결과 문서 | 한 줄 요약 |
 |---|---|---|
 | 1. 자료 확보 | 이 문서 1절 | InSAR 측정점 74,944개, 관측정 30곳, GPS 5곳, 강수, 유전 경계, CVHM2 층 구조 |
-| 2. 역산 + GPS 검증 | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **467mm(E2) → 20.5mm(E3)**, E4 90% 범위가 GPS 94% 포함 |
-| 3. 취수 계획 | [results_plan/RESULTS.md](results_plan/RESULTS.md) | 기준 초과 확률 E1 100% · E3 63% · **E4 0%** (비용 117 / 98 / 153천$) |
-| 3+. 날씨 시나리오 | [results_plan/RESULTS_weather.md](results_plan/RESULTS_weather.md) | 배경 침하 습한 해 2.0 / 평년 2.7 / 가뭄 해 3.9mm(3개월). 평년 계획은 가뭄 해에 초과 확률 43%, 세 시나리오 모두 고려하면 0%(비용 +38%) |
-| 4. AI 대리모델 | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW면 약 15시간) |
-| 비교: 가정 층 구조 | [results_simple/RESULTS.md](results_simple/RESULTS.md) | CVHM2 대신 단순 3개 층을 가정했을 때(10/12 첫 버전) |
+| 2. 역산 + GPS 검증 (이전 버전) | [results_uniform/RESULTS.md](results_uniform/RESULTS.md) | GPS 침하 예측 오차 **467mm(E2) → 20.5mm(E3)**, 구조 오차를 더한 E4 90% 범위가 GPS 94% 포함(평균 폭 65mm) |
+| 2. 역산 + GPS 검증 (새 버전) | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **59.2mm(E2) → 25.2mm(E3)**, E4 범위 GPS 100% 포함이지만 평균 폭 265mm로 너무 넓음 |
+| 3. 취수 계획 (이전 버전) | [results_plan/RESULTS.md](results_plan/RESULTS.md) | 계획에 쓴 30개 기준 초과 확률 E1 100% · E3 63% · E4 0%(정의상). **계획에 안 쓴 30개로 다시 잰 값은 [RESULTS_oos.md](results_plan/RESULTS_oos.md)** |
+| 3+. 날씨 시나리오 (이전 버전) | [results_plan/RESULTS_weather.md](results_plan/RESULTS_weather.md) | 배경 침하 습한 해 2.0 / 평년 2.7 / 가뭄 해 3.9mm(3개월). 평년 계획은 가뭄 해에 초과 확률 43%(계획에 쓴 30개 기준) |
+| 4. AI 대리모델 (이전 버전) | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW면 약 15시간) |
+| 비교: 가정 층 구조 | [results_simple/RESULTS.md](results_simple/RESULTS.md) | CVHM2 대신 단순 3개 층을 가정했을 때(첫 버전) |
 
-![GPS 검증](results/real-3-gps-validation.png)
+**표본 밖 평가:** `python eval_plan_oos.py` (이전 버전 기준, 10코어 맥 약 5~10분) → `results_plan/RESULTS_oos.md`
+
+![GPS 검증 (이전 버전)](results_uniform/real-3-gps-validation.png)
 
 ## 1. 자료
 

@@ -28,7 +28,7 @@ from scipy.optimize import linprog
 import real_model as r
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "results_policy"
+OUT = HERE / ("results_policy" if r.PUMPING == "et" else "results_policy_uniform")
 OUT.mkdir(exist_ok=True)
 
 SERVICE_KM = 10.0          # 관리 대상: 수로 동쪽 10km 안 농경지
@@ -351,9 +351,10 @@ def compare(site, M, th3, groups, cells, assign, pts, svc, window, future=None, 
 def main(only=None):
     t0 = time.time()
     site = r.load_site()
-    res = json.load(open(HERE / "results" / "results.json"))
+    MODEL = r.result_dir("model", create=False); r.check_version(MODEL)
+    res = json.load(open(MODEL / "results.json"))
     th3 = np.array(res["params"]["E3"])
-    M = np.load(HERE / "results" / "E4_members.npy")
+    M = np.load(MODEL / "E4_members.npy")
     import plan_real as pr
     pts = pr.mgmt_points(site)
     w, groups = group_wells(load_wells(site))

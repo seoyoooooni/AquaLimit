@@ -9,13 +9,15 @@ import numpy as np
 import real_model as r
 import plan_real as p
 
-OUT = r.HERE / "results_plan"
+OUT = r.result_dir("plan")
+MODEL = r.result_dir("model", create=False)
 
 
 def main():
     t0 = time.time()
     site = r.load_site()
-    M4 = np.load(r.HERE / "results" / "E4_members.npy")
+    r.check_version(MODEL); r.check_version(OUT)
+    M4 = np.load(MODEL / "E4_members.npy")
     pts, wells = p.mgmt_points(site), p.operator_wells(site)
     z = np.load(OUT / "R4.npz")
     R = {"평년": [{"Rs": z["Rs"][i], "Rh": z["Rh"][i]} for i in range(len(z["Rs"]))]}
@@ -41,7 +43,7 @@ def main():
          "| 시나리오 | 배경 침하(수로 칸 중앙값, 3개월) |", "|---|---|"]
     for sc in ["습한 해", "평년", "가뭄 해"]:
         L.append(f"| {sc} | {out['background_median_mm'][sc]:.2f} mm |")
-    L += ["\n| 계획 | 비용(천$) | 외부 구매(천 m³) | 초과 확률: 습한 해 | 평년 | 가뭄 해 |", "|---|---|---|---|---|---|"]
+    L += ["\n| 계획 | 비용(천$) | 외부 구매(천 m³) | 초과 확률(계획에 쓴 30개): 습한 해 | 평년 | 가뭄 해 |", "|---|---|---|---|---|---|"]
     for k, pl in plans.items():
         if not pl["feasible"]:
             L.append(f"| {k} | 불가 | - | - | - | - |"); continue

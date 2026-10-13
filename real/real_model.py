@@ -68,6 +68,7 @@ PARAMS_CVHM2 = ([(f"log10_mSk_z{i}", 0.0, 0.5) for i in range(SK_ZONES * SK_ZONE
     ("dry_beta", 0.5, 0.5),                    # 가뭄 해 취수 증가 계수
     ("log10_rch", np.log10(0.1), 0.4),         # 강수 중 함양 비율
 ])
+PARAMS_CVHM2_BASE = list(PARAMS_CVHM2)
 # 취수량 추정 방식: "et"(위성 증발산 기반, 기본) 또는 "uniform"(농경지 균일 × 계절 × 가뭄 계수, 이전 방식)
 PUMPING = os.environ.get("AQ_PUMPING", "et")
 if STRUCTURE == "cvhm2" and PUMPING == "et":
@@ -82,6 +83,48 @@ PARAMS = PARAMS_CVHM2 if STRUCTURE == "cvhm2" else PARAMS_SIMPLE
 NAMES = [p[0] for p in PARAMS]
 PRIOR_MEAN = np.array([p[1] for p in PARAMS])
 PRIOR_SD = np.array([p[2] for p in PARAMS])
+
+# ---------------------------------------------------------------- 모델 버전과 결과 폴더
+# 취수 추정 방식(AQ_PUMPING)마다 결과를 다른 폴더에 둔다. 서로 다른 버전 결과가 섞이지 않게 폴더마다 model_version.json을 남기고 확인한다.
+#   et(새 버전, 기본)    : results/          results_plan_et/  results_ai_et/
+#   uniform(이전 버전)   : results_uniform/  results_plan/     results_ai/
+RESULT_DIRS = {"et": {"model": "results", "plan": "results_plan_et", "ai": "results_ai_et"},
+               "uniform": {"model": "results_uniform", "plan": "results_plan", "ai": "results_ai"}}
+
+
+def model_version():
+    return {"structure": STRUCTURE, "pumping": PUMPING, "et_source": ET_SOURCE if PUMPING == "et" else None,
+            "param_names": NAMES}
+
+
+def result_dir(kind, create=True):
+    """kind: model / plan / ai. 지금 버전(AQ_PUMPING)에 맞는 결과 폴더."""
+    if STRUCTURE != "cvhm2":
+        d = HERE / {"model": "results_simple", "plan": "results_plan_simple", "ai": "results_ai_simple"}[kind]
+    else:
+        d = HERE / RESULT_DIRS[PUMPING][kind]
+    if create:
+        d.mkdir(exist_ok=True)
+    return d
+
+
+def write_version(d):
+    json.dump(model_version(), open(Path(d) / "model_version.json", "w"), ensure_ascii=False, indent=1)
+
+
+def check_version(d):
+    """폴더의 결과가 지금 모델 버전으로 만든 것인지 확인. 다르면 어떻게 실행해야 하는지 알려 주고 멈춘다."""
+    d = Path(d); f = d / "model_version.json"
+    if f.exists():
+        v = json.load(open(f)); names = v.get("param_names")
+    elif (d / "results.json").exists():
+        names = json.load(open(d / "results.json")).get("params", {}).get("names"); v = {}
+    else:
+        return
+    if names is not None and list(names) != list(NAMES):
+        other = "uniform" if len(names) == len(PARAMS_CVHM2_BASE) else "et"
+        raise RuntimeError(f"{d.name}/ 결과는 다른 모델 버전(파라미터 {len(names)}개, 취수 방식 {v.get('pumping', other)})으로 만든 것입니다. "
+                           f"지금은 {PUMPING}(파라미터 {len(NAMES)}개). 'AQ_PUMPING={v.get('pumping', other)} python ...'로 실행하거나 결과를 다시 만드세요.")
 
 
 # ---------------------------------------------------------------- 자료

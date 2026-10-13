@@ -88,6 +88,15 @@ def responses(site, theta, wells, pts, workers=None, dry=0.0):
 def solve(resp_list, use_head=False):
     """변수: 우물별 평균 취수(m3/일) W개 + 외부 구매(m3). 비용 최소."""
     W = len(WELL_COST)
+    if use_head:
+        # 계획 우물을 하나도 안 돌려도(배경 취수만으로) 이미 과거 최저 수위 아래면, 이 사업자 계획으로는 임계수위를 지킬 수 없다.
+        # (예전 코드는 이 경우 제약을 0으로 바꿔 '취수 0 + 전량 구매'를 가능으로 냈다 → 수정)
+        short = [float(np.min(R["base_head_end"] - R["hist_min"])) for R in resp_list]
+        if min(short) < 0:
+            frac = float(np.mean([v < 0 for v in short]))
+            return {"feasible": False, "background_below_crit": True, "background_below_crit_frac": frac,
+                    "reason": f"다른 농가 취수만으로도 이미 과거 최저 수위 아래입니다(앙상블 {frac * 100:.0f}%). "
+                              "이 사업자의 계획만으로는 임계수위를 지킬 수 없고, 지역 전체 취수 조정이 필요합니다."}
     c = np.concatenate([WELL_COST * DAYS, [PRICE]])
     A_eq = np.concatenate([np.full(W, DAYS), [1.0]])[None]; b_eq = [DEMAND]
     A_ub, b_ub = [], []
@@ -95,7 +104,7 @@ def solve(resp_list, use_head=False):
         for p in range(R["Rs"].shape[0]):
             A_ub.append(np.concatenate([R["Rs"][p], [0]])); b_ub.append(LIMIT_MM)
             if use_head:   # 기준 끝 수위 + 계획 영향 ≥ 과거 최저  →  -Rh·x ≤ base_end - hist_min
-                A_ub.append(np.concatenate([-R["Rh"][p], [0]])); b_ub.append(max(R["base_head_end"][p] - R["hist_min"][p], 0.0))
+                A_ub.append(np.concatenate([-R["Rh"][p], [0]])); b_ub.append(R["base_head_end"][p] - R["hist_min"][p])
     bounds = [(0, CAP)] * W + [(0, PURCHASE_CAP)]
     res = linprog(c, A_ub=np.array(A_ub), b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method="highs")
     if res.status != 0:

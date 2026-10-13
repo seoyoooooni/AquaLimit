@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import real_model as r
 
-OUT = r.HERE / ("results" if r.STRUCTURE == "cvhm2" else "results_simple"); OUT.mkdir(exist_ok=True)
+OUT = r.result_dir("model")
 for p in ["/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"]:
     try: font_manager.fontManager.addfont(p)
     except Exception: pass
@@ -26,6 +26,8 @@ def main(n_iter=6, n_post=30):
     site = r.load_site()
     res = {}
     cache_f = OUT / "calib_cache.json"
+    r.check_version(OUT)
+    r.write_version(OUT)
     cache = json.load(open(cache_f)) if cache_f.exists() else {}
     def cal(key, msg, **kw):                      # 역산 결과를 바로 저장(중간에 멈춰도 다시 계산하지 않게)
         if key in cache:

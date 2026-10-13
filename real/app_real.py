@@ -8,6 +8,7 @@
   results_ai/R_ai1000.npz  AI 대리모델 응답 행렬(앙상블 1,000개)
 """
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -15,8 +16,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-import real_model as r
-import plan_real as p
+os.environ.setdefault("AQ_PUMPING", "uniform")   # 데모는 계획·AI 결과를 만든 이전 버전 모델 기준
+import real_model as r  # noqa: E402
+import plan_real as p  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 st.set_page_config(page_title="AquaLimit 실제 지역 데모", layout="wide")
@@ -26,12 +28,14 @@ st.set_page_config(page_title="AquaLimit 실제 지역 데모", layout="wide")
 def load():
     site = r.load_site()
     pts, wells = p.mgmt_points(site), p.operator_wells(site)
-    z4 = np.load(HERE / "results_plan" / "R4.npz")
+    PLAN, AI = r.result_dir("plan", create=False), r.result_dir("ai", create=False)
+    r.check_version(PLAN); r.check_version(AI)
+    z4 = np.load(PLAN / "R4.npz")
     R4 = [{"Rs": z4["Rs"][i], "Rh": z4["Rh"][i]} for i in range(len(z4["Rs"]))]
-    z3 = np.load(HERE / "results_plan" / "R3.npz")
+    z3 = np.load(PLAN / "R3.npz")
     R3 = {k: z3[k] for k in z3.files}
     Rai = None
-    f = HERE / "results_ai" / "R_ai1000.npz"
+    f = AI / "R_ai1000.npz"
     if f.exists():
         za = np.load(f); Rai = [{"Rs": za["Rs"][i].astype(float), "Rh": za["Rh"][i].astype(float)} for i in range(len(za["Rs"]))]
     vel = pd.read_csv(HERE / "data" / "insar_points_velocity.csv").sample(15000, random_state=0)
@@ -63,7 +67,7 @@ with st.sidebar:
     ai_margin = 0.0
     if mode.startswith("E4 AI"):
         try:
-            mg = json.load(open(HERE / "results_ai" / "results.json")).get("ai_margin_mm") or 0.0
+            mg = json.load(open(r.result_dir("ai", create=False) / "results.json")).get("ai_margin_mm") or 0.0
         except FileNotFoundError:
             mg = 0.0
         if st.checkbox(f"AI 오차 여유 두기 ({mg:.2f} mm)", value=True,
@@ -125,5 +129,5 @@ with c2:
         st.caption(f"기존 방식(용량 비례): 비용 {base['cost'] / 1e3:,.0f}천$, 기준 초과 확률 {rb['exceed_prob'] * 100:.0f}%")
 
 st.subheader("3. 모델은 믿을 만한가? — 보정에 쓰지 않은 GPS로 검증")
-st.image(str(HERE / "results" / "real-3-gps-validation.png"), width="stretch")
+st.image(str(r.result_dir("model", create=False) / "real-3-gps-validation.png"), width="stretch")
 st.caption("2015.7~2022.12 위성·관측정으로 보정하고, 2023.1~2026.4 GPS(검정 점)로 채점. 위성을 넣은 E3의 GPS 오차는 관측정만 쓴 E2보다 크게 작다(results/RESULTS.md).")

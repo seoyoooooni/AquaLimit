@@ -21,7 +21,9 @@ import real_model as r
 import plan_real as p
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "results_ai"; OUT.mkdir(exist_ok=True)
+OUT = r.result_dir("ai")
+MODEL = r.result_dir("model", create=False)
+PLAN = r.result_dir("plan", create=False)
 
 
 def lhs(n, d, rng):
@@ -129,7 +131,8 @@ def main(n_train=600, seed=0):
     import run_real  # noqa: F401  (한글 글꼴 설정)
     t0 = time.time()
     site = r.load_site()
-    res = json.load(open(HERE / "results" / "results.json"))
+    r.check_version(MODEL); r.check_version(OUT); r.write_version(OUT)
+    res = json.load(open(MODEL / "results.json"))
     th3, cov3 = np.array(res["params"]["E3"]), np.array(res["params"]["E3_cov"])
     pts, wells = p.mgmt_points(site), p.operator_wells(site)
     P = len(pts)
@@ -137,6 +140,9 @@ def main(n_train=600, seed=0):
     cache = OUT / "train_data.npz"
     if cache.exists():
         z = np.load(cache); TH, X, Y = z["TH"], z["X"], z["Y"]
+        if TH.shape[1] != len(r.NAMES):
+            raise RuntimeError(f"저장된 학습 자료는 파라미터 {TH.shape[1]}개 버전입니다(지금 {len(r.NAMES)}개). "
+                               f"{cache} 를 지우고 다시 실행하거나 AQ_PUMPING을 맞추세요.")
         print(f"학습 자료 {len(Y)}개 (저장된 것 사용)")
     else:
         print(f"[학습 자료] MODFLOW {n_train}회 실행 (파라미터: E4 사후분포 ×2 폭, 취수량: 0~용량)")
@@ -162,16 +168,16 @@ def main(n_train=600, seed=0):
     t = time.time(); net.predict(np.repeat(Xin[te][:1], 7000, 0)); t_batch = (time.time() - t) / 7000
 
     # AI로 만든 응답 행렬 vs MODFLOW 응답 행렬(run_plan의 E4 구성원)
-    M4 = np.load(HERE / "results" / "E4_members.npy")
+    M4 = np.load(MODEL / "E4_members.npy")
     def ai_resp(th):
         base = np.r_[th, np.zeros(len(wells))]
         Z = np.array([base] + [np.r_[th, np.eye(len(wells))[w]] for w in range(len(wells))])
         F = net.predict(Z)
         return {"Rs": ((F[1:, :P] - F[0, :P]) / p.CAP).T, "Rh": ((F[1:, P:] - F[0, P:]) / p.CAP).T}
     comp = None
-    plan_res = OUT.parent / "results_plan" / "results.json"
-    if (OUT.parent / "results_plan" / "R4.npz").exists():
-        z = np.load(OUT.parent / "results_plan" / "R4.npz")
+    plan_res = PLAN / "results.json"
+    if (PLAN / "R4.npz").exists():
+        z = np.load(PLAN / "R4.npz")
         Rs_mf = z["Rs"]                                             # (구성원, 지점, 우물)
         Rs_ai = np.array([ai_resp(th)["Rs"] for th in M4[: len(Rs_mf)]])
         d = (Rs_ai - Rs_mf) * p.CAP
