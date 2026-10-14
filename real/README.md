@@ -20,7 +20,7 @@ Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하�
 | 2. 역산 + GPS 검증 (새 버전) | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **59.2mm(E2) → 25.2mm(E3)**(변화 0 예측 22.1mm보다 나쁨), E4 범위 GPS 100% 포함이지만 평균 폭 265mm로 너무 넓음 |
 | 3. 취수 계획 (이전 버전) | [results_plan/RESULTS.md](results_plan/RESULTS.md) | 계획에 쓴 30개 기준 초과 확률 E1 100% · E3 63% · E4 0%(정의상). **계획에 안 쓴 30개로 다시 잰 값은 [RESULTS_oos.md](results_plan/RESULTS_oos.md)** |
 | 3+. 날씨 시나리오 (이전 버전) | [results_plan/RESULTS_weather.md](results_plan/RESULTS_weather.md) | 배경 침하 습한 해 2.0 / 평년 2.7 / 가뭄 해 3.9mm(3개월). 평년 계획은 가뭄 해에 초과 확률 43%(계획에 쓴 30개 기준) |
-| 4. AI 대리모델 (이전 버전) | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW면 약 15시간) |
+| 4. AI 대리모델 (이전 버전) | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW 7,000회: 순차 약 14.5시간, 10코어 병렬 약 1시간 15분) |
 | 비교: 가정 층 구조 | [results_simple/RESULTS.md](results_simple/RESULTS.md) | CVHM2 대신 단순 3개 층을 가정했을 때(첫 버전) |
 
 **표본 밖 평가:** `python eval_plan_oos.py` (이전 버전 기준, 10코어 맥 약 5~10분) → `results_plan/RESULTS_oos.md`
