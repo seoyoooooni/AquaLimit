@@ -22,9 +22,15 @@ def main():
     z = np.load(OUT / "R4.npz")
     R = {"평년": [{"Rs": z["Rs"][i], "Rh": z["Rh"][i]} for i in range(len(z["Rs"]))]}
     base = {}
-    for name, d in [("가뭄 해", 1.0), ("습한 해", -1.0)]:
-        print(f"[{name}] E4 구성원 {len(M4)}개 응답 계산")
-        lst = [p.responses(site, th, wells, pts, dry=d) for th in M4]
+    # v3: 기온(증발산 수요)·수로 배분율·나머지 취수 가뭄 계수를 함께 바꾼다(policy_real.SCENARIOS). 이전 버전: 가뭄 계수만
+    if r.V3:
+        import policy_real as pol
+        scen = [("가뭄 해", None, pol.SCENARIOS["가뭄·폭염"]), ("습한 해", None, pol.SCENARIOS["습한 해"])]
+    else:
+        scen = [("가뭄 해", 1.0, None), ("습한 해", -1.0, None)]
+    for name, d, fut in scen:
+        print(f"[{name}] E4 구성원 {len(M4)}개 응답 계산", flush=True)
+        lst = [p.responses(site, th, wells, pts, dry=(d or 0.0), future=fut) for th in M4]
         lst = [x for x in lst if x is not None]
         R[name] = lst
         base[name] = float(np.median([np.median(x["base_sub"]) for x in lst]))
@@ -39,7 +45,10 @@ def main():
     out["minutes"] = round((time.time() - t0) / 60, 1)
     json.dump(out, open(OUT / "weather.json", "w"), ensure_ascii=False, indent=1, default=float)
     L = ["# 날씨 시나리오 (2026년 5~7월)\n",
-         "다음 관개기가 가뭄 해 / 평년 / 습한 해일 때. 가뭄 해에는 다른 농가가 지하수를 더 뽑는다(역산한 가뭄 계수). 기준: 계획 추가 침하 ≤ 2mm/3개월.\n",
+         ("다음 관개기가 가뭄·폭염 해 / 평년 / 습한 해일 때. 가뭄·폭염: 기온 +2.5°C(증발산 수요 증가), 수로 배분율 15%, 나머지 취수 가뭄 계수 +1. "
+          "습한 해: 기온 −1.5°C, 배분율 45%, 가뭄 계수 −1. 평년: 기온 평년, 배분율 30%. 다른 농가도 같은 날씨에 맞춰 더/덜 뽑는다. "
+          if r.V3 else "다음 관개기가 가뭄 해 / 평년 / 습한 해일 때. 가뭄 해에는 다른 농가가 지하수를 더 뽑는다(역산한 가뭄 계수). ")
+         + f"기준: 계획 추가 침하 ≤ {p.LIMIT_MM}mm/3개월.\n",
          "| 시나리오 | 배경 침하(수로 칸 중앙값, 3개월) |", "|---|---|"]
     for sc in ["습한 해", "평년", "가뭄 해"]:
         L.append(f"| {sc} | {out['background_median_mm'][sc]:.2f} mm |")

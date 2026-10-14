@@ -79,6 +79,36 @@ if STRUCTURE == "cvhm2" and PUMPING == "et":
         ("log10_sw", np.log10(0.3), 0.4),      # SWP 100% 배분일 때 수로물 공급 깊이 m/년(관리 지역 농경지 평균)
         ("log10_rch", np.log10(0.1), 0.4),
     ]
+# 모델 변형(새 버전 et에서만): v2 = 10/13 버전(results/), v3 = 최종 후보(지연 압밀 + 과거 이력 spin-up + 관개 회귀수 함양 + 현실적 사전범위)
+#   입력별 기여 실험: v3_nolandsat(밭별 차이 없음), v3_noweather(해마다 같은 기상), v3_noalloc(해마다 같은 수로 배분율)
+VARIANT = os.environ.get("AQ_VARIANT", "v3") if (STRUCTURE == "cvhm2" and PUMPING == "et") else "base"
+V3 = VARIANT.startswith("v3")
+OPS = VARIANT.endswith("ops")   # 운영 모델(v3ops): 2023~2026 GPS까지 보정에 쓴다 → 계획·정책·AI용. 검증 점수는 v3(2022년까지 보정)로 말한다
+SIG_GPS_CAL = 2.0               # mm, (GPS가 없을 때 기본값)
+GPS_WEIGHT = 0.5                # 운영 모델 보정: GPS 전체 가중치 = InSAR 전체 가중치 × 0.5
+ABLATE = VARIANT.split("_", 1)[1] if "_" in VARIANT else ""
+BAN_MONTH = "2024-12"        # 수로 양쪽 2.5마일 취수 금지 시행(2024.12.9)
+BUFFER_KM = 4.02
+SPIN_YEARS = 10              # v3: 2005.7~2015.6 과거 취수 이력(반년 단위)을 먼저 돌려 2015년 시작 상태에 '진행 중인 침하'를 담는다
+DELAY_BEQ = 10.0             # v3: 지연 압밀 등가 점토층 두께(m). 코코란 점토(G2)는 층 전체를 한 덩어리로 둔다
+if V3:
+    PARAMS_CVHM2 = PARAMS_CVHM2_BASE[:10] + [
+        ("log10_Kf", np.log10(0.02), 0.4),     # 세립질 투수계수: 3σ 상한 0.3m/일(점토·실트로 현실적인 범위)
+        PARAMS_CVHM2_BASE[11], PARAMS_CVHM2_BASE[12], PARAMS_CVHM2_BASE[13],
+        ("log10_pmult", 0.0, 0.3),
+        ("log10_sw", np.log10(0.3), 0.4),
+        ("log10_rch", np.log10(0.05), 0.25),   # 강수 함양 비율: 3σ 상한 약 0.28(연 강수 150mm 반건조 지역)
+        ("log10_rf", np.log10(0.15), 0.15),    # 관개 회귀수 비율(뿌린 물 중 땅속으로 스며드는 비율): 3σ 범위 0.05~0.42
+        ("log10_Kvdb", np.log10(1e-5), 0.7),   # 지연 압밀 점토층 연직 투수계수 m/일(북쪽 절반) → 침하가 늦게 따라오는 시간
+        ("log10_Kvdb_s", np.log10(1e-5), 0.7), # 같은 값, 남쪽 절반(Q204·Q208·Q213 쪽). GPS: 북쪽은 2023년에 바로 반등, 남쪽은 계속 침하
+        ("log10_spin", 0.0, 0.3),              # 2005~2015 과거 취수 = 2015~2022 계절 평균 × 이 배수
+    ]
+    if VARIANT.endswith("ops"):
+        # 운영 모델: 2024.12 취수 금지 이후 실제 취수가 위성 추정과 얼마나 달랐는지 GPS로 거꾸로 추정한다(계량 기록 비공개)
+        PARAMS_CVHM2 = PARAMS_CVHM2 + [
+            ("log10_post_in", 0.0, 0.5),       # 금지구역(수로 양쪽 2.5마일) 안 취수 배수, 2024.12~
+            ("log10_post_out", 0.0, 0.5),      # 금지구역 밖 취수 배수, 2024.12~
+        ]
 PARAMS = PARAMS_CVHM2 if STRUCTURE == "cvhm2" else PARAMS_SIMPLE
 NAMES = [p[0] for p in PARAMS]
 PRIOR_MEAN = np.array([p[1] for p in PARAMS])
@@ -94,7 +124,7 @@ RESULT_DIRS = {"et": {"model": "results", "plan": "results_plan_et", "ai": "resu
 
 def model_version():
     return {"structure": STRUCTURE, "pumping": PUMPING, "et_source": ET_SOURCE if PUMPING == "et" else None,
-            "param_names": NAMES}
+            "variant": VARIANT if PUMPING == "et" else None, "param_names": NAMES}
 
 
 def result_dir(kind, create=True):
@@ -103,6 +133,8 @@ def result_dir(kind, create=True):
         d = HERE / {"model": "results_simple", "plan": "results_plan_simple", "ai": "results_ai_simple"}[kind]
     else:
         d = HERE / RESULT_DIRS[PUMPING][kind]
+        if PUMPING == "et" and VARIANT != "v2":
+            d = HERE / {"model": f"results_{VARIANT}", "plan": f"results_plan_{VARIANT}", "ai": f"results_ai_{VARIANT}"}[kind]
     if create:
         d.mkdir(exist_ok=True)
     return d
@@ -122,12 +154,13 @@ def check_version(d):
     else:
         return
     cur = model_version()
-    diff = [k for k in ("structure", "pumping", "et_source") if k in v and v[k] != cur[k]]
+    diff = [k for k in ("structure", "pumping", "et_source", "variant") if k in v and v[k] != cur[k]]
     if names is not None and list(names) != list(NAMES):
         diff.append("param_names")
     if diff:
         other = v.get("pumping") or ("uniform" if names is not None and len(names) == len(PARAMS_CVHM2_BASE) else "et")
-        env = f"AQ_PUMPING={other}" + (f" AQ_ET={v['et_source']}" if v.get("et_source") else "")
+        env = f"AQ_PUMPING={other}" + (f" AQ_ET={v['et_source']}" if v.get("et_source") else "") + \
+              (f" AQ_VARIANT={v['variant']}" if v.get("variant") else (" AQ_VARIANT=v2" if other == "et" else ""))
         raise RuntimeError(f"{d.name}/ 결과는 다른 모델 버전으로 만든 것입니다(다른 항목: {', '.join(diff)}). "
                            f"폴더: {dict((k, v.get(k)) for k in ('structure', 'pumping', 'et_source'))}, "
                            f"지금: {dict((k, cur[k]) for k in ('structure', 'pumping', 'et_source'))}. "
@@ -186,9 +219,11 @@ def load_site():
     np.add.at(oil_frac, (cells.iy // F, cells.ix // F), oil.to_numpy().astype(float))
     np.add.at(cnt, (cells.iy // F, cells.ix // F), 1.0)
     ag = (lon_c > aq_lon + 0.005) & (oil_frac < 0.5 * np.maximum(cnt, 1))
+    aq_dist = np.array([np.min(np.hypot((pts[:, 0] - a) * KM_LON, (pts[:, 1] - b) * KM_LAT))
+                        for a, b in zip(lon_c.ravel(), lat_c.ravel())]).reshape(lat_c.shape)
 
     return dict(cells=cells, disp=disp, months=months, nx=nx, ny=ny, use=use.to_numpy(), hobs=hobs,
-                ag=ag, precip=load_precip(months), gps=load_gps(months), aq_pts=pts, lat_c=lat_c, lon_c=lon_c, cv=cv,
+                ag=ag, aq_dist=aq_dist, buf=ag & (aq_dist <= BUFFER_KM), precip=load_precip(months), gps=load_gps(months), aq_pts=pts, lat_c=lat_c, lon_c=lon_c, cv=cv,
                 **load_et(months, lat_c, lon_c))
 
 
@@ -213,7 +248,14 @@ def load_et(months, lat_c, lon_c):
         nm = list(pd.PeriodIndex(zn["months"], freq="M")); em = pd.PeriodIndex(ze["months"], freq="M")
         em = [m for m in em if m in set(nm)]
         eidx = {m: i for i, m in enumerate(pd.PeriodIndex(ze["months"], freq="M"))}
-        E = np.array([kc_from_ndvi(zn["ndvi"][nm.index(m)]) * ze["eto_mm"][eidx[m]] for m in em])
+        KC = np.array([kc_from_ndvi(zn["ndvi"][nm.index(m)]) for m in em])
+        ETO = np.array([ze["eto_mm"][eidx[m]] for m in em])
+        if ABLATE == "nolandsat":       # 위성 밭별 정보 없음: 달마다 지역 평균 작물계수 하나
+            KC = np.repeat(np.nanmean(KC, axis=(1, 2), keepdims=True), KC.shape[1], 1).repeat(KC.shape[2], 2)
+        if ABLATE == "noweather":       # 기상(기온 등) 해마다 같음: 같은 달 평균 기준증발산
+            mo = np.array([m.month for m in em])
+            ETO = np.array([ETO[mo == k].mean(0) for k in mo])
+        E = KC * ETO
         em = pd.PeriodIndex(em, freq="M")
     else:
         z = np.load(DATA / "et_ssebop_monthly.npz")
@@ -225,6 +267,8 @@ def load_et(months, lat_c, lon_c):
     clim = {m: np.mean([et[pd.Period(f"{y}-{m:02d}", "M")] for y in range(ET_BASE_YEARS[0], ET_BASE_YEARS[1] + 1)], 0)
             for m in range(1, 13)}
     al = pd.read_csv(DATA / "swp_allocation.csv").set_index("year").alloc_pct / 100.0
+    if ABLATE == "noalloc":             # 수로 배분율 정보 없음: 해마다 평균값
+        al = al * 0 + float(al.mean())
     t = pd.read_csv(DATA / "temp_monthly.csv", index_col=0)
     t.index = pd.PeriodIndex(t.index, freq="M")
     tclim = t.groupby(t.index.month).mean()
@@ -347,6 +391,12 @@ def forcing(site, theta, extra_months=0, future_dry=0.0, future=None):
         q = gw / 1000.0 / days[:, None, None] * MCELL * MCELL         # m3/일/칸
         q = q + base_uniform(site, p, months, extra_months, future.get("dry", future_dry))[:, None, None]
         q = q * site["ag"][None]
+        if "log10_post_in" in p:                                      # 운영 모델: 금지 이후 취수 배수(안/밖)
+            kb = np.array([m >= pd.Period(BAN_MONTH, "M") for m in months])
+            mult = np.where(site["buf"], 10 ** p["log10_post_in"], 10 ** p["log10_post_out"])
+            q = q.copy(); q[kb] = q[kb] * mult[None]
+        if V3:                                                        # 관개 회귀수: 뿌린 물(수로물+지하수)의 일부가 다시 스며든다
+            rch = rch[:, None, None] + 10 ** p["log10_rf"] * need / 1000.0 / days[:, None, None]
         return days, np.maximum(rch, 0), q
     return days, np.maximum(rch, 0), base_uniform(site, p, months, extra_months, future_dry)
 
@@ -441,6 +491,16 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
             q = q.copy()
             for iy, ix in plan["replace_cells"]:
                 q[list(plan_k), iy, ix] = 0.0
+        if plan.get("zero_from") is not None and q.ndim == 3:        # 시나리오: 어느 달부터 지정 칸 취수를 멈춤(금지 효과 등)
+            q = q.copy()
+            k0z = plan["zero_from"]
+            for iy, ix in plan.get("zero_cells", []):
+                q[k0z:, iy, ix] = 0.0
+    ns = 0
+    if V3:                                                           # 과거 취수 이력 spin-up(2005.7~2015.6, 반년 단위)
+        days, rch, q, ns = add_spinup(site, p, days, rch, q)
+        if plan:
+            plan_k = range(plan_k.start + ns, plan_k.stop + ns)
     flip = lambda a: a[::-1, :]                                    # iy(남→북) → MODFLOW 행(북→남)
     G = ["G1", "G2", "G3", "G4"]
     thk = np.stack([cv[f"{g}_thk"] for g in G])
@@ -457,22 +517,26 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
     kh[1] = np.where(corc_present, np.minimum(kh[1], 0.05), kh[2])
     idom = np.repeat(active[None], 4, 0).astype(int)
     sim = flopy.mf6.MFSimulation(sim_name="aq", sim_ws=ws, exe_name=MF6, verbosity_level=0)
-    flopy.mf6.ModflowTdis(sim, nper=len(days), perioddata=[(d, 1, 1.0) for d in days], time_units="days")
+    flopy.mf6.ModflowTdis(sim, nper=len(days), perioddata=[(d, (NSTP_SPIN if k < ns else 1), 1.0) for k, d in enumerate(days)],
+                          time_units="days")
     if robust:
-        flopy.mf6.ModflowIms(sim, complexity="complex", outer_dvclose=1e-4, inner_dvclose=1e-5, outer_maximum=200,
+        flopy.mf6.ModflowIms(sim, complexity="complex", outer_dvclose=(2e-3 if V3 else 1e-4), inner_dvclose=1e-5, outer_maximum=200,
                              inner_maximum=300, linear_acceleration="bicgstab")
     else:
-        flopy.mf6.ModflowIms(sim, complexity="moderate", outer_dvclose=1e-5, inner_dvclose=1e-6, linear_acceleration="bicgstab")
+        flopy.mf6.ModflowIms(sim, complexity="moderate", outer_dvclose=(1e-3 if V3 else 1e-5), inner_dvclose=(1e-4 if V3 else 1e-6),
+                             outer_maximum=(100 if V3 else 25), linear_acceleration="bicgstab")   # v3: 지연 압밀은 수위 1mm 수렴으로 충분
     gwf = flopy.mf6.ModflowGwf(sim, modelname="aq")
     flopy.mf6.ModflowGwfdis(gwf, nlay=4, nrow=ny, ncol=nx, delr=MCELL, delc=MCELL, top=flip(top),
                             botm=[flip(b) for b in botm], idomain=[flip(i) for i in idom])
     flopy.mf6.ModflowGwfnpf(gwf, icelltype=0, k=[flip(a) for a in kh], k33=[flip(a) for a in kv])
     flopy.mf6.ModflowGwfsto(gwf, iconvert=0, ss=0.0, transient={0: True})
-    flopy.mf6.ModflowGwfic(gwf, strt=0.0)
+    h_off = float(np.nanmax(top)) + 10.0 if V3 else 0.0             # v3: 수위 기준을 지표 위로(지연 압밀 점토가 포화 상태로 계산되게). 출력은 변화량이라 영향 없음
+    flopy.mf6.ModflowGwfic(gwf, strt=h_off)
     edge = [(0, ny - 1 - iy, ix) for iy in range(ny) for ix in range(nx)
             if (iy in (0, ny - 1) or ix in (0, nx - 1)) and active[iy, ix]]
-    flopy.mf6.ModflowGwfchd(gwf, stress_period_data={0: [[e, 0.0] for e in edge]})
-    flopy.mf6.ModflowGwfrcha(gwf, recharge={k: float(rch[k]) for k in range(len(days))})
+    flopy.mf6.ModflowGwfchd(gwf, stress_period_data={0: [[e, h_off] for e in edge]})
+    flopy.mf6.ModflowGwfrcha(gwf, recharge={k: (float(rch[k]) if np.ndim(rch[k]) == 0 else flip(rch[k]))
+                                            for k in range(len(days))})
     ag = np.argwhere(site["ag"] & active)
     qc = (lambda k, iy, ix: float(q[k, iy, ix])) if q.ndim == 3 else (lambda k, iy, ix: float(q[k]))
     wel = {k: [[(L, ny - 1 - iy, ix), -qc(k, iy, ix) * f] for iy, ix in ag for L, f in ((2, 0.6), (3, 0.4))
@@ -495,28 +559,95 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
                 if not active[iy, ix] or fine[iy, ix] < 0.5:
                     continue
                 m = float(mult[iy, ix])
+                if V3 and USE_DELAY != "0" and not (USE_DELAY == "2" and g == "G2"):   # 지연 압밀: 두꺼운 점토는 수위가 내려간 뒤에도 몇 년에 걸쳐 눌린다
+                    b = float(fine[iy, ix]) if g == "G2" else min(float(fine[iy, ix]), DELAY_BEQ)
+                    kvdb = 10 ** p["log10_Kvdb_s" if iy < ny // 2 else "log10_Kvdb"]
+                    pdata.append([n, (L, ny - 1 - iy, ix), "delay", 0.0, b, max(float(fine[iy, ix]) / b, 1.0),
+                                  float(ssv) * m, float(sse) * m, 0.3, kvdb, 0.0]); n += 1
+                    continue
                 pdata.append([n, (L, ny - 1 - iy, ix), "nodelay", 0.0, float(fine[iy, ix]), 1.0,
                               float(ssv) * m, float(sse) * m, 0.3, 999.0, 0.0]); n += 1
     flopy.mf6.ModflowGwfcsub(gwf, head_based=True, initial_preconsolidation_head=True, ninterbeds=n,
+                             ndelaycells=(7 if V3 else None),                 # 지연 압밀 점토층 안을 7칸으로 나눠 계산(속도)
                              cg_ske_cr=float(cv["SSCE"]) + 1e-6, cg_theta=0.3, packagedata=pdata,
                              compaction_filerecord="aq.cmp")
     flopy.mf6.ModflowGwfoc(gwf, head_filerecord="aq.hds", saverecord=[("HEAD", "ALL")])
     sim.write_simulation(silent=True)
-    ok, buff = sim.run_simulation(silent=True)
+    ok, buff = _run_mf6(sim, ws)
     if not ok:
         if own:
             shutil.rmtree(ws, ignore_errors=True)
         raise RuntimeError("MODFLOW 실패: " + " ".join(buff[-10:]))
-    hf = flopy.utils.HeadFile(os.path.join(ws, "aq.hds"))
-    H = np.array(hf.get_alldata())[:, :, ::-1, :]
+    hf = flopy.utils.HeadFile(os.path.join(ws, "aq.hds"), precision="double")
+    H = np.array(_last_steps(hf))[:, :, ::-1, :]
     H = np.where(np.abs(H) > 1e20, np.nan, H)
-    cf = flopy.utils.HeadFile(os.path.join(ws, "aq.cmp"), text="CSUB-COMPACTION")
-    C = np.array(cf.get_alldata())
+    cf = flopy.utils.HeadFile(os.path.join(ws, "aq.cmp"), text="CSUB-COMPACTION", precision="double")
+    C = np.array(_last_steps(cf))
     C = np.where(np.abs(C) > 1e20, 0.0, C)
     S = C.sum(axis=1)[:, ::-1, :] * 1000.0
+    if ns:                                                           # spin-up 끝(2015.6) 기준 변화로 바꾼다
+        H = H[ns:] - H[ns - 1]; S = S[ns:] - S[ns - 1]
     if own and not keep:
         shutil.rmtree(ws, ignore_errors=True)
     return S, H
+
+
+USE_DELAY = os.environ.get("AQ_DELAY", "2")   # 2(기본): 대수층 안 점토층만 지연 압밀, 코코란 점토는 비지연(지연으로 두면 수렴 실패). 0: 모두 비지연
+NSTP_SPIN = int(os.environ.get("AQ_NSTP", "6"))                # spin-up 반년 기간은 6단계로 나눠 푼다(지연 압밀 수렴)
+
+
+def _last_steps(f):
+    """기간마다 마지막 시간 단계 값만(기간 수 = 출력 수)."""
+    kk = f.get_kstpkper()
+    last = {}
+    for kstp, kper in kk:
+        last[kper] = (kstp, kper)
+    return [f.get_data(kstpkper=last[k]) for k in sorted(last)]
+
+
+MF6_TIMEOUT = float(os.environ.get("AQ_MF6_TIMEOUT", 180))   # 초. 극단 파라미터에서 수렴이 끝없이 길어지는 실행은 실패로 처리
+
+
+def _run_mf6(sim, ws):
+    """MODFLOW 6을 시간 제한을 두고 실행. (성공 여부, 마지막 출력 줄)"""
+    try:
+        cp = subprocess.run([MF6], cwd=ws, capture_output=True, text=True, timeout=MF6_TIMEOUT)
+        out = (cp.stdout or "").splitlines()
+        return ("Normal termination" in (cp.stdout or "")), out[-10:]
+    except subprocess.TimeoutExpired:
+        return False, [f"시간 초과({MF6_TIMEOUT:.0f}초)"]
+
+
+def add_spinup(site, p, days, rch, q):
+    """2015.7 앞에 SPIN_YEARS년(관개기 4~9월 / 비관개기 10~3월 반년 단위)을 붙인다.
+    과거 취수 = 2015.7~2022.12 같은 계절 평균 × 10**log10_spin, 함양 = 같은 계절 평균.
+    2015년에 이미 수위가 내려가 있고 점토가 아직 눌리는 중인 상태(잔류 침하)에서 시작하게 한다."""
+    months = site["months"][1:]
+    n_hist = min(len(site["months"]) - 1, list(site["months"]).index(pd.Period(CAL_END, "M")))
+    irr = np.isin([m.month for m in months[:n_hist]], [4, 5, 6, 7, 8, 9])
+    mult = 10 ** p["log10_spin"]
+    qi, qn = q[:n_hist][irr].mean(0) * mult, q[:n_hist][~irr].mean(0) * mult
+    ri, rn = rch[:n_hist][irr].mean(0), rch[:n_hist][~irr].mean(0)
+    ds, rs, qs = [], [], []
+    for _ in range(SPIN_YEARS):
+        ds += [182.0, 183.0]; rs += [rn, ri]; qs += [qn, qi]           # 10~3월, 4~9월 (2005.10부터)
+    ns = len(ds)
+    return (np.r_[ds, days], np.concatenate([np.array(rs), rch]), np.concatenate([np.array(qs), q]), ns)
+
+
+def mix_band(P, sd, lo_q=5, hi_q=95, K=40, seed=0):
+    """예측 분포의 90% 범위 = 앙상블 구성원 각각에 오차 sd(정규분포)를 더한 혼합 분포의 5~95% 분위수.
+    (10/13 버전은 앙상블 5~95% 끝에 1.645σ를 다시 더해 실제 90%보다 넓었다 → 수정)"""
+    P = np.atleast_2d(np.asarray(P, float))
+    N, n = P.shape
+    sdv = np.broadcast_to(np.asarray(sd, float), (n,))
+    rng = np.random.default_rng(seed)
+    lo, hi = np.empty(n), np.empty(n)
+    for a in range(0, n, 2000):
+        b = min(n, a + 2000)
+        Z = (P[:, None, a:b] + rng.normal(size=(N, K, b - a)) * sdv[a:b]).reshape(-1, b - a)
+        lo[a:b], hi[a:b] = np.percentile(Z, [lo_q, hi_q], axis=0)
+    return lo, hi
 
 
 # ---------------------------------------------------------------- 관측 연산자
@@ -564,11 +695,31 @@ def obs_index(site, period, use_insar=True, use_gps=None, cal_end=None, val_end=
             iy = int((ref.lat - LAT0) * KM_LAT * 1000 // MCELL); ix = int((ref.lon - LON0) * KM_LON * 1000 // MCELL)
             for r in g.iloc[1:].itertuples():
                 gp.append((iy, ix, kmap[r.month], kmap[ref.month], -(r.up_mm - ref.up_mm)))   # 침하(아래로 양수)
+    sig_gp = SIG_INSAR
+    if OPS and period == "cal" and cal_end is None and use_insar:   # 운영 모델: 보정 기간 뒤 GPS도 보정에 쓴다
+        ks2 = np.arange(1, len(months)); ks2 = ks2[ks2 > cal_k]
+        for st, g in site["gps"].groupby("station"):
+            g = g[g.month.map(kmap).isin(set(ks2))].sort_values("month")
+            if len(g) < 3:
+                continue
+            ref = g.iloc[0]
+            iy = int((ref.lat - LAT0) * KM_LAT * 1000 // MCELL); ix = int((ref.lon - LON0) * KM_LON * 1000 // MCELL)
+            for r_ in g.iloc[1:].itertuples():
+                gp.append((iy, ix, kmap[r_.month], kmap[ref.month], -(r_.up_mm - ref.up_mm)))
+        # GPS 가중치: InSAR 관측은 수천 개지만 서로 겹치는 정보가 많다. GPS 전체 가중치가 InSAR 전체의 GPS_WEIGHT배가 되게 σ를 정한다
+        n_ins_ = len(ins)
+        sig_gp = float(np.sqrt(len(gp) * SIG_INSAR ** 2 / (GPS_WEIGHT * max(n_ins_, 1)))) if gp else SIG_GPS_CAL
+        # 수위도 보정 기간 뒤까지
+        for r_ in h.itertuples():
+            k, kr = kmap.get(r_.month), kmap.get(r_.ref_month)
+            if k is None or kr is None or k not in set(ks2):
+                continue
+            hh.append((r_.iy, r_.ix, r_.layer, k, kr, r_.dh_m))
     ins = np.array(ins) if ins else np.zeros((0, 4))
     hh = np.array(hh) if hh else np.zeros((0, 6))
     gp = np.array(gp) if gp else np.zeros((0, 5))
     d = np.concatenate([ins[:, 3] if len(ins) else [], hh[:, 5] if len(hh) else [], gp[:, 4] if len(gp) else []])
-    sd = np.concatenate([np.full(len(ins), SIG_INSAR), np.full(len(hh), SIG_HEAD), np.full(len(gp), SIG_INSAR)])
+    sd = np.concatenate([np.full(len(ins), SIG_INSAR), np.full(len(hh), SIG_HEAD), np.full(len(gp), sig_gp)])
     return dict(ins=ins, hh=hh, gp=gp, d=d, sd=sd, n_ins=len(ins), n_hh=len(hh))
 
 
@@ -674,14 +825,14 @@ def _fd_jacobian(site, theta, idx, base, step=0.05, workers=None):
     return J
 
 
-def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None, ckpt=None):
+def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None, ckpt=None, th0=None):
     """가우스-뉴턴(레벤버그-마쿼트) 최소제곱 역산.
 
     목적함수 = Σ((모델-관측)/σ)² + Σ((θ-사전평균)/사전σ)².
     반환: 추정값 θ, 사후 공분산(선형화), 반복 기록.
     """
     idx = obs_index(site, "cal", use_insar, cal_end=cal_end)
-    th = PRIOR_MEAN.copy()
+    th = PRIOR_MEAN.copy() if th0 is None else np.clip(np.asarray(th0, float), PRIOR_MEAN - 3 * PRIOR_SD, PRIOR_MEAN + 3 * PRIOR_SD)
     lam = 1.0
     hist = []
     it0 = 0
@@ -828,14 +979,14 @@ def evaluate(site, outs, err=None):
                 r[f"{k}_rmse"] = float(np.sqrt(np.mean(e[s_] ** 2)))
                 if len(outs) > 1:
                     sig = SIG_HEAD if k == "head" else SIG_INSAR
-                    lo = np.percentile(P[:, s_], 5, 0) - 1.645 * sig; hi = np.percentile(P[:, s_], 95, 0) + 1.645 * sig
+                    lo, hi = mix_band(P[:, s_], sig)
                     r[f"{k}_cov90"] = float(np.mean((idx["d"][s_] >= lo) & (idx["d"][s_] <= hi)))
                     if err is not None and k == "gps" and period == "val":
                         # 구조 오차 추가: 예측 기간(보정 끝으로부터 년)에 따라 커지는 오차
                         k0 = list(site["months"]).index(pd.Period(CAL_END, "M"))
                         lead = (idx["gp"][:, 2] - k0) / 12.0
                         sd = np.sqrt(err["s0_mm"] ** 2 + (err["b_mm_per_yr"] * lead) ** 2 + SIG_INSAR ** 2)
-                        lo2 = np.percentile(P[:, s_], 5, 0) - 1.645 * sd; hi2 = np.percentile(P[:, s_], 95, 0) + 1.645 * sd
+                        lo2, hi2 = mix_band(P[:, s_], sd)
                         r["gps_cov90_with_model_error"] = float(np.mean((idx["d"][s_] >= lo2) & (idx["d"][s_] <= hi2)))
                         r["gps_band90_mean_width_mm"] = float(np.mean(hi2 - lo2))
         res[period] = r

@@ -1,0 +1,56 @@
+{
+ "n_samples": 800,
+ "n_theta": 200,
+ "k_loc": 4,
+ "n_test": 160,
+ "test_rmse_mm_per_1000": 0.0072673866288239086,
+ "test_r2": 0.9204949975099601,
+ "resp_scale_mm_per_1000": 0.07549674103405057,
+ "sec_modflow": 5.806492805480957,
+ "sec_ai_all_cells": 0.0005218982696533203,
+ "n_ag_cells": 432,
+ "sec_resp_1000_ai": 0.03622031211853027,
+ "sec_resp_1000_modflow_est": 40645.4496383667,
+ "response_check": {
+  "resp_rmse_mm_at_cap": 0.017601697991801994,
+  "resp_mean_abs_mm_at_cap": 0.20930326937886082
+ },
+ "plan_ai_1000": {
+  "feasible": true,
+  "rates": [
+   8721.6,
+   8721.6,
+   1337.2419357496187,
+   0.0,
+   0.0,
+   3301.0829087770485
+  ],
+  "purchase": 1338525.9543035466,
+  "cost": 1212783.1241864513
+ },
+ "minutes": 0.2,
+ "risk_ai_plan_on_modflow30": {
+  "exceed_prob": 0.0,
+  "worst_mean_mm": 1.0238260182481205,
+  "worst_p95_mm": 1.4063947394657896
+ },
+ "ai_margin_mm": 0.06049741604198109,
+ "plan_ai_margin": {
+  "feasible": true,
+  "rates": [
+   8721.6,
+   8721.6,
+   777.1370230461374,
+   0.0,
+   0.0,
+   3241.256413392638
+  ],
+  "purchase": 1395559.6438476327,
+  "cost": 1255696.3363829171
+ },
+ "risk_ai_margin_plan_on_modflow30": {
+  "exceed_prob": 0.0,
+  "worst_mean_mm": 0.9914532648982629,
+  "worst_p95_mm": 1.362393784150933
+ }
+}

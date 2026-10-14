@@ -13,7 +13,7 @@ import json
 import os
 import time
 
-os.environ.setdefault("AQ_PUMPING", "uniform")     # 계획·날씨 결과(results_plan)를 만든 이전 버전 모델
+# 10/13 결과(results_plan, 이전 버전) 재현: AQ_PUMPING=uniform python3 eval_plan_oos.py. 기본은 최종 모델(AQ_VARIANT=v3ops 등)
 
 import numpy as np  # noqa: E402
 
@@ -48,6 +48,9 @@ def main():
     plans = {k: v for k, v in plan_res["plans"].items() if v.get("feasible")}
     plans.update({k: v for k, v in wx["plans"].items() if v.get("feasible")})
     M = draw_members(th3, cov3, N_NEW, SEED)
+    if r.V3:
+        import policy_real as pol
+        SCEN.update({"평년": pol.SCENARIOS["평년"], "가뭄 해": pol.SCENARIOS["가뭄·폭염"], "습한 해": pol.SCENARIOS["습한 해"]})
     print(f"새 땅속 상태 {len(M)}개, 계획 {len(plans)}개, 시나리오 {len(SCEN)}개", flush=True)
 
     # 한 번에 모아서 병렬 실행: 구성원 × 시나리오 × (기준 1 + 우물 6) + E4 평년 계획 직접 실행
@@ -56,14 +59,16 @@ def main():
         if rates is not None:
             x[:] = rates
         elif w is not None:
-            x[:, w] = p.CAP
+            x[:, w] = p.CAP[w]
+        if isinstance(dry, dict):                       # v3: 기온·배분율·가뭄 계수 시나리오
+            return {"months": p.MONTHS, "wells": wells, "rates": x, "dry": 0.0, "future": dry}
         return {"months": p.MONTHS, "wells": wells, "rates": x, "dry": dry}
     jobs, keys = [], []
     for i, th in enumerate(M):
         for sc, d in SCEN.items():
             for w in [None] + list(range(W)):
                 jobs.append((th, mk(w, d))); keys.append((i, sc, w))
-        jobs.append((th, mk(None, 0.0, np.array(plans["E4"]["rates"])))); keys.append((i, "평년", "E4직접"))
+        jobs.append((th, mk(None, SCEN["평년"], np.array(plans["E4"]["rates"])))); keys.append((i, "평년", "E4직접"))
     print(f"MODFLOW {len(jobs)}회 실행", flush=True)
     outs = r.run_ensemble_plans(site, [j[0] for j in jobs], [j[1] for j in jobs])
     O = dict(zip(keys, outs))
@@ -77,7 +82,7 @@ def main():
             if any(v is None for v in o):
                 continue
             S0 = o[0][0]; base = S0[-1, iy, ix] - S0[n0, iy, ix]
-            Rs = np.stack([((o[w + 1][0][-1, iy, ix] - o[w + 1][0][n0, iy, ix]) - base) / p.CAP for w in range(W)], 1)
+            Rs = np.stack([((o[w + 1][0][-1, iy, ix] - o[w + 1][0][n0, iy, ix]) - base) / p.CAP[w] for w in range(W)], 1)
             R[sc].append({"i": i, "Rs": Rs, "base": base})
         od = O[(i, "평년", "E4직접")]
         b0 = O[(i, "평년", None)]

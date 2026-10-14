@@ -91,7 +91,7 @@ class Net:
         except ImportError:
             from sklearn.neural_network import MLPRegressor
             self.torch = False
-            self.m = MLPRegressor((self.h, self.h), activation="relu", max_iter=self.epochs, random_state=self.seed).fit(a, b)
+            self.m = MLPRegressor(hidden_layer_sizes=(self.h, self.h), activation="relu", max_iter=self.epochs, random_state=self.seed).fit(a, b)
         return self
 
     def save(self, path):
@@ -173,7 +173,7 @@ def main(n_train=600, seed=0):
         base = np.r_[th, np.zeros(len(wells))]
         Z = np.array([base] + [np.r_[th, np.eye(len(wells))[w]] for w in range(len(wells))])
         F = net.predict(Z)
-        return {"Rs": ((F[1:, :P] - F[0, :P]) / p.CAP).T, "Rh": ((F[1:, P:] - F[0, P:]) / p.CAP).T}
+        return {"Rs": ((F[1:, :P] - F[0, :P]) / np.atleast_1d(p.CAP)[:, None]).T, "Rh": ((F[1:, P:] - F[0, P:]) / np.atleast_1d(p.CAP)[:, None]).T}
     comp = None
     plan_res = PLAN / "results.json"
     if (PLAN / "R4.npz").exists():
