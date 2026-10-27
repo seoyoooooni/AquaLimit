@@ -1,31 +1,29 @@
 # 실제 검증 지역 (California Aqueduct MP 195~215)
 
-Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하수·침하 물리모델을 만들고, 보정에 쓰지 않은 **GPS로 예측을 검증**한 뒤, 침하 기준을 지키는 취수 계획과 AI 대리모델까지 만든 폴더다.
+Lost Hills 주변 31km × 31km. 위성(InSAR)·Landsat·기상·관측정·USGS CVHM2로 지하수·침하 물리모델(MODFLOW 6 + CSUB)을 만들고, 보정에 쓰지 않은 **GPS로 예측을 검증**한 뒤, 실제 정책(2024.12 수로 주변 취수 금지)과 비교하는 정책 계산, 사업자 우물 계획, 위치 입력 AI, 최종 데모까지 만든 폴더다.
 
-## 모델 버전 두 가지
+(10/22 갱신: 지금 쓰는 모델은 v3(검증)·v3ops(운영)다. 아래 '이전 버전' 결과 폴더는 비교용으로만 남겨 둔다.)
 
-취수량을 어떻게 추정하느냐에 따라 두 버전이 있다. 결과 폴더가 나뉘어 있고, 폴더마다 `model_version.json`에 버전과 파라미터 이름이 적혀 있다. 다른 버전 결과를 읽으려 하면 코드가 멈추고 알려 준다.
+## 지금 쓰는 모델과 결과
 
-| 버전 | 취수 추정 | 실행 | 결과 폴더 |
+| 모델 | 보정 자료 | 용도 | 결과 폴더 |
 |---|---|---|---|
-| **이전 버전(uniform)** | 수로 동쪽 농경지 전체에 고르게 × 관개기 계절 × 가뭄 계수, 크기는 역산 | `AQ_PUMPING=uniform python ...` | `results_uniform/`, `results_plan/`, `results_ai/` |
-| **새 버전(et, 기본)** | Landsat NDVI × gridMET 기준증발산(기온·습도·바람·일사)으로 칸별 작물 증발산 → 비·SWP 수로 물 배분율을 빼고 남는 만큼 지하수 + 위성으로 설명 안 되는 나머지(이전 버전의 균일·계절·가뭄 항)를 역산 | `python ...` (기본값) | `results/` (계획·AI는 아직 안 만듦) |
+| **v3 검증 모델** | DWR InSAR + 관측정, 2015.7~2022.12 | 예측 성능 채점(보정에 안 쓴 2023~2026 GPS) | `results_v3/`, `results_validate_v3/` |
+| **v3ops 운영 모델** | + 2023~2026.4 GPS·관측정, 금지 후 취수 배수 추정 | 정책 비교·계획·AI·데모 | `results_v3ops/`, `results_validate_v3ops/`, `results_policy_v3ops/`, `results_plan_v3ops/`, `results_ai_v3ops/` |
+| v3ops-opera (10/22) | 위성을 NASA OPERA로 바꾸고 2026.2까지 위성도 보정에 씀 | 금지 후 취수 배수 재추정(점검용) | `results_v3ops-opera/`, `results_validate_v3ops-opera/` |
 
-취수 계획, 날씨 시나리오, AI 대리모델, 데모 앱은 **이전 버전 모델**로 만든 것이다. 데모 앱(`app_real.py`)은 이전 버전을 읽도록 고정돼 있다.
+v3의 바뀐 점: 지연 압밀(남·북 구역 따로), 2005~2015 과거 취수 이력(spin-up), 관개 회귀수 함양, 현실적 사전범위, 90% 범위 계산 수정. 취수량은 Landsat NDVI × gridMET 기준증발산(기온·습도·바람·일사)으로 칸별 작물 증발산을 구하고, 비·수로 물 배분율을 뺀 나머지를 지하수로 둔다.
 
-| 단계 | 결과 문서 | 한 줄 요약 |
+| 결과 | 문서 | 한 줄 요약 |
 |---|---|---|
-| 1. 자료 확보 | 이 문서 1절 | InSAR 측정점 74,944개, 관측정 30곳, GPS 5곳, 강수, 유전 경계, CVHM2 층 구조 |
-| 2. 역산 + GPS 검증 (이전 버전) | [results_uniform/RESULTS.md](results_uniform/RESULTS.md) | GPS 침하 예측 오차 **467mm(E2) → 20.5mm(E3)**, 구조 오차를 더한 E4 90% 범위가 GPS 94% 포함(평균 폭 65mm). 단순 예측 비교: 변화 0 22.1mm, 2015~2022 InSAR 추세 연장 7.2mm |
-| 2. 역산 + GPS 검증 (새 버전) | [results/RESULTS.md](results/RESULTS.md) | GPS 침하 예측 오차 **59.2mm(E2) → 25.2mm(E3)**(변화 0 예측 22.1mm보다 나쁨), E4 범위 GPS 100% 포함이지만 평균 폭 265mm로 너무 넓음 |
-| 3. 취수 계획 (이전 버전) | [results_plan/RESULTS.md](results_plan/RESULTS.md) | 계획에 쓴 30개 기준 초과 확률 E1 100% · E3 63% · E4 0%(정의상). **계획에 안 쓴 30개로 다시 잰 값은 [RESULTS_oos.md](results_plan/RESULTS_oos.md)** |
-| 3+. 날씨 시나리오 (이전 버전) | [results_plan/RESULTS_weather.md](results_plan/RESULTS_weather.md) | 배경 침하 습한 해 2.0 / 평년 2.7 / 가뭄 해 3.9mm(3개월). 평년 계획은 가뭄 해에 초과 확률 43%(계획에 쓴 30개 기준) |
-| 4. AI 대리모델 (이전 버전) | [results_ai/RESULTS.md](results_ai/RESULTS.md) | MODFLOW 대비 오차 0.14mm(R² 0.997), 앙상블 1,000개 계산 0.1초(MODFLOW 7,000회: 순차 약 14.5시간, 10코어 병렬 약 1시간 15분) |
-| 비교: 가정 층 구조 | [results_simple/RESULTS.md](results_simple/RESULTS.md) | CVHM2 대신 단순 3개 층을 가정했을 때(첫 버전) |
-
-**표본 밖 평가:** `python eval_plan_oos.py` (이전 버전 기준, 10코어 맥 약 5~10분) → `results_plan/RESULTS_oos.md`
-
-![GPS 검증 (이전 버전)](results_uniform/real-3-gps-validation.png)
+| 검증 점수 | [results_v3/RESULTS.md](results_v3/RESULTS.md), [구조 오차 다시 재기](results_v3/RESULTS_uncertainty.md) | GPS 침하 오차 E2 70.9 → **E3 21.2mm**, E4 90% 범위 GPS 포함 99%(폭 97mm). 단순 추세 연장 7.2mm가 아직 더 정확. 구조 오차를 OPERA 정답으로 다시 재면 폭 59mm·포함 82%(90% 미달 → 기존 유지) |
+| 채점표 | [SCOREBOARD.md](SCOREBOARD.md), [RESCORE_PRACTICE.md](RESCORE_PRACTICE.md) | 구조 후보 v4(6종)는 연습 시험에서 모두 v3보다 나빠 채택 안 함. 10/23 연습 시험 정답을 DWR → OPERA로 바꿔(DWR가 2020~22 GPS 침하의 절반만 잡음) 다시 채점해도 v3가 1등, 모델 편향 +2mm |
+| 자연 실험·원인 분해 | [results_validate_v3/](results_validate_v3/RESULTS.md), [results_validate_v3ops/](results_validate_v3ops/RESULTS.md) | 습한 해 감속은 맞힘, 금지 후는 못 맞힘. 운영 모델: 금지구역 안 취수 위성 추정의 1.36배 |
+| 정책 비교 | [results_policy_v3ops/RESULTS.md](results_policy_v3ops/RESULTS.md) | 4km 전면 금지로는 평년 45%·가뭄 32% 수로 지점만 기준(연 0.5인치) 충족 |
+| 금지 반경 비교 (MODFLOW 확인) | [results_policy_v3ops/RESULTS_refine.md](results_policy_v3ops/RESULTS_refine.md) (선형 응답 판: [RESULTS_radius.md](results_policy_v3ops/RESULTS_radius.md)) | 같은 신뢰도(MODFLOW 모든 구성원·지점 기준 안)에서 가뭄에 맞춘 고정 반경(6.9km)보다 평년 20%·습한 해 29%·가뭄 10% 싸다. 선형으로 푼 계획은 MODFLOW로 확인·보정(60~97% → 100%) |
+| OPERA 위성 점검 | [results_opera/RESULTS.md](results_opera/RESULTS.md) | GPS와 방향 일치 DWR 3/5 → OPERA 5/5. 위성 이중차분: 금지 후 금지구역 안이 밖보다 +2.9mm/년 덜 좋아짐 |
+| 사업자 계획 | [results_plan_v3ops/RESULTS.md](results_plan_v3ops/RESULTS.md), [표본 밖](results_plan_v3ops/RESULTS_oos.md) | 금지구역 밖 실제 우물 6개. 기준 초과 E1 47% → E4 7%(계획에 안 쓴 땅속 상태) |
+| 위치 입력 AI | [results_ai_v3ops/RESULTS_loc.md](results_ai_v3ops/RESULTS_loc.md) | R² 0.92, 1,000개 땅속 상태 × 우물 6곳 MODFLOW 11시간 → 1초 미만 |
 
 ## 1. 자료
 
@@ -33,75 +31,92 @@ Lost Hills 주변 31km × 31km. 위성(InSAR)·관측정·USGS CVHM2로 지하�
 
 | 자료 | 내용 | 파일 |
 |---|---|---|
-| InSAR 수직 변위 | DWR TRE Altamira(Sentinel-1) 측정점 74,944개, 2015.1~2026.4, 약 6일 간격, mm | `data/insar_points_velocity.csv`, `data/insar_grid500m_monthly.npz` |
+| InSAR 수직 변위 (DWR) | DWR TRE Altamira(Sentinel-1) 측정점 74,944개, 2015.1~2026.4, 약 6일 간격. **2023년 이후는 GPS와 어긋나 쓰지 않음** | `data/insar_points_velocity.csv`, `data/insar_grid500m_monthly.npz` |
+| InSAR 수직 변위 (NASA OPERA) | OPERA DISP-S1 30m, 상승 36541·하강 38502·38503 → 500m 칸 수직·동서 성분, 2016.7~2026.2 | `data/opera/reduced/`(줄인 파일), `data/opera_grid500m_monthly.npz` (`fetch_opera.py`, `prepare_opera.py`) |
 | 지하수위 | DWR 정기 측정 관측정 30곳, 1,831건 | `data/wells.csv`, `data/gwl_measurements.csv` |
-| GPS 수직 위치 | 수로 GPS 5곳(Nevada Geodetic Lab, IGS20) — **검증 전용** | `data/gps_monthly.csv` |
-| 강수 | NOAA Lost Hills·Buttonwillow 관측소 월 강수(함양) | `data/precip_monthly.csv` |
-| 층 구조·지질 | USGS CVHM2 13개 층 → 4개 묶음(상부 대수층 / 코코란 점토 / 하부 대수층 위·아래), 조립질 비율, 압축 점토 두께 | `data/cvhm2_box.npz` (`fetch_cvhm2.py`로 생성) |
+| GPS 수직 위치 | 수로 GPS 5곳(Nevada Geodetic Lab, IGS20) — v3 검증 전용, v3ops 보정에도 사용 | `data/gps_monthly.csv` |
+| 작물·기상 | Landsat NDVI, gridMET 기준증발산, USGS SSEBop, 기온 | `data/ndvi_monthly.npz`, `data/eto_gridmet_monthly.npz`, `data/et_ssebop_monthly.npz`, `data/temp_monthly.csv` |
+| 수로 물 배분율 | SWP 연도별 배분율 | `data/swp_allocation.csv` |
+| 강수 | NOAA Lost Hills·Buttonwillow 관측소 월 강수 | `data/precip_monthly.csv` |
+| 우물 신고 | DWR Well Completion Reports(농업용 신규 우물) | `data/wcr_raw.json` |
+| 층 구조·지질 | USGS CVHM2 13개 층 → 4개 묶음 | `data/cvhm2_box.npz` (`fetch_cvhm2.py`) |
 | 수로·측량점·유전 | SWP 반복구간 선형, 정밀측량점, CalGEM 유전 경계 | `data/*.geojson` |
 
 ### 자료에서 발견한 것
 
-- **유전 침하가 섞여 있다.** 수로 2km 이내 격자 39%가 Lost Hills·Belridge 유전 안이다. 석유 생산 침하를 지하수 침하로 오인하지 않도록 유전 격자는 역산·취수에서 뺐다.
-- **2023년 이후 InSAR와 GPS가 어긋난다.** 2015~2022년에는 잘 맞지만(P544 2022.6: GPS 47mm, InSAR 38mm 침하) 2023년 이후 InSAR는 지반이 올라가고 GPS는 계속 침하한다(P544 2025.12: GPS 72mm, InSAR 33mm). 2023년 이후 InSAR는 쓰지 않고 GPS로 검증했다. 공개 위성 자료도 GPS로 교차 검증하는 **자료 품질 검사**가 서비스에 필요하다.
-- **수로 옆 관측정은 최근에 생겼다.** 다층 관측정 4곳은 2023~2025년 설치, 장기 관측정(2014~)은 수로에서 4.6~8.6km.
+- **유전 침하가 섞여 있다.** 수로 2km 이내 격자 39%가 Lost Hills·Belridge 유전 안이다. 유전 격자는 역산·취수에서 뺐다.
+- **2023년 이후 DWR InSAR와 GPS가 어긋난다.** P544·Q204에서 DWR는 지반 상승, GPS는 침하. NASA OPERA는 5곳 모두 GPS와 같은 방향(누적 오차 중앙값 DWR 17.0mm, OPERA 8.3mm). → 공개 위성 자료도 GPS로 교차 검증하는 **자료 품질 검사**가 서비스 기능이다.
+- **수로 GPS에는 계절 변동이 있다.** 여름에 수 mm 올라가고 겨울에 내려간다(같은 칸 OPERA는 여름에 내려감). 속도 비교는 같은 달 → 같은 달 1년 단위로 해야 한다.
+- **수로 옆 관측정·GPS는 최근에 생겼다.** 다층 관측정 4곳은 2023~2025년 설치, GPS Q198·Q204·Q208·Q213은 2023~2025년 시작(DWR CASP 관측망).
 
 ## 2. 모델
 
-- MODFLOW 6 + CSUB, 1km 격자 32×31, 4개 층 묶음(CVHM2), 2015.7~2026.4 월 단위
-- 압축층: 과거 최저 수위(선행압밀수위) 아래로 내려가면 비탄성(영구) 압축. 계수는 CVHM2 값(비탄성 4.4e-4/m, 탄성 2.5e-5/m) × 구역별 보정 배수(역산)
-- 함양 = 강수 × 비율(역산), 농경지(수로 동쪽) 취수 = 기본량 × 관개기(4~9월) × 가뭄 계수(역산) — 관정별 기록이 공개되지 않아 크기를 역산
-- 역산: 가우스-뉴턴 최소제곱(파라미터 15개), 불확실성: 선형화 사후분포 앙상블 + 되돌아보기 검증으로 잰 모델 구조 오차
+- MODFLOW 6 + CSUB, 1km 격자 32×31, 4개 층 묶음(CVHM2), 2005.7~2015.6 과거 이력 + 2015.7~2026.4 월 단위
+- 압축층: 과거 최저 수위 아래로 내려가면 비탄성(영구) 압축. 대수층 안 점토층은 지연 압밀(남·북 구역별 투수계수), 코코란 점토는 비지연(지연으로 두면 수렴 안 함)
+- 역산: 가우스-뉴턴(레벤버그-마쿼트) 최소제곱, 파라미터 21개(운영 모델 23개). 불확실성: 선형화 사후분포 앙상블 + 되돌아보기 검증으로 잰 모델 구조 오차
 
 ## 3. 실행
 
 ```bash
 cd real
 pip install -r requirements.txt
-get-modflow :flopy                 # MODFLOW 6 실행파일 설치
-python3 fetch_cvhm2.py             # (선택) CVHM2 층 구조 다시 만들기, 334MB 내려받음. 결과 npz는 이미 들어 있음
+get-modflow :flopy                                   # MODFLOW 6 실행파일 설치
 
-# 첫 번째 모델(uniform) — 발표의 계획·날씨·AI·데모 결과를 만든 버전. AQ_PUMPING=uniform을 꼭 붙인다.
-AQ_PUMPING=uniform python3 run_real.py        # 역산 + GPS 검증 → results_uniform/
-AQ_PUMPING=uniform python3 run_plan.py        # 취수 계획 E1~E4 → results_plan/
-AQ_PUMPING=uniform python3 run_weather.py     # 날씨 시나리오 → results_plan/
-AQ_PUMPING=uniform python3 surrogate_real.py  # AI 대리모델 → results_ai/
-python3 eval_plan_oos.py                      # 표본 밖 평가(첫 번째 모델 고정) → results_plan/RESULTS_oos.md
-streamlit run app_real.py                     # 데모 화면(첫 번째 모델 고정)
+caffeinate -i bash run_all.sh 2>&1 | tee log_all.txt # v3·v3ops 전체 12단계(10코어 맥 약 3시간, 멈추면 다시 실행)
+streamlit run app_final.py                           # 최종 데모(운영 모델 v3ops)
 
-# 새 버전(et, 기본값) — 위성·기상·배분율 취수 추정. 결과는 다른 폴더에 생긴다.
-python3 run_real.py                # 역산 + GPS 검증 → results/
-python3 run_plan.py                # (아직 안 만듦) → results_plan_et/
+# 10/22 추가
+python3 prepare_opera.py --build                     # OPERA 줄인 파일 → 500m 수직 변위(몇 초)
+python3 opera_analysis.py                            # OPERA vs DWR vs GPS, 금지 전후 이중차분 → results_opera/
+AQ_VARIANT=v3ops python3 policy_ban_radius.py        # 금지 반경 넓히기 vs AquaLimit(몇 초, MODFLOW 안 돌림)
+AQ_INSAR=opera AQ_VARIANT=v3ops python3 run_real.py           # OPERA 운영 모델 → results_v3ops-opera/
+AQ_INSAR=opera AQ_VARIANT=v3ops python3 validate_response.py  # 금지 후 원인 분해(OPERA 모델)
+
+bash run_dev.sh v4-xxx                               # 구조 후보를 연습 시험으로 비교 → SCOREBOARD.md
 ```
 
-결과 폴더마다 `model_version.json`(structure, pumping, et_source, 파라미터 이름)이 있고, 지금 설정과 하나라도 다르면 스크립트가 멈추고 어떤 환경변수로 실행해야 하는지 알려 준다.
-
-Google Colab: `AquaLimit_real_colab.ipynb`를 열고 **런타임 → 모두 실행**(저장된 결과 보기 약 3분, `RECOMPUTE = True`면 전체 재계산).
+결과 폴더마다 `model_version.json`(structure, pumping, et_source, variant, insar, 파라미터 이름)이 있고, 지금 설정과 다르면 스크립트가 멈추고 어떤 환경변수로 실행해야 하는지 알려 준다.
 
 | 파일 | 역할 |
 |---|---|
-| `real_model.py` | 자료 읽기, MODFLOW 모델(CVHM2 구조 / 단순 구조), 역산, 불확실성, 평가 |
-| `run_real.py` | E2·E3·E4 역산 + GPS 검증 → `results/` |
-| `plan_real.py`, `run_plan.py`, `run_weather.py` | 취수 계획(선형계획, 강건 제약, 임계수위), 날씨 시나리오 → `results_plan/` |
-| `surrogate_real.py` | AI 대리모델 학습·검증·활용 → `results_ai/` |
-| `app_real.py` | Streamlit 데모 |
-| `fetch_data.py`, `prepare_insar.py`, `fetch_cvhm2.py` | 자료 수집·가공 |
-| `AquaLimit_real_colab.ipynb` | Colab 노트북 |
+| `real_model.py` | 자료 읽기, MODFLOW 모델, 역산, 불확실성, 평가. 환경변수 `AQ_VARIANT`(v3·v3ops·v4-…), `AQ_INSAR`(dwr·opera) |
+| `run_real.py` | E2·E3·E4 역산 + GPS 검증(`--dev` 연습 시험, `--e3-only` 입력별 기여) |
+| `validate_response.py` | 자연 실험(습한 해·금지)과 금지 후 원인 분해 |
+| `policy_real.py` | 실제 우물 56개로 전면 금지 vs AquaLimit(과거 가뭄 재현, 다음 관개기 날씨별) |
+| `policy_ban_radius.py` | 금지 반경 넓히기 vs AquaLimit(저장된 응답으로 계산) |
+| `plan_real.py`, `run_plan.py`, `run_weather.py`, `eval_plan_oos.py` | 사업자 우물 계획, 날씨 시나리오, 표본 밖 평가 |
+| `surrogate_loc.py` | 위치 입력 AI 대리모델 |
+| `app_final.py` | 최종 Streamlit 데모 |
+| `fetch_data.py`, `prepare_insar.py`, `fetch_cvhm2.py`, `fetch_et.py`, `fetch_landsat.py`, `fetch_opera.py`, `prepare_opera.py` | 자료 수집·가공 |
+| `opera_analysis.py` | OPERA 위성 점검(모델 없음) |
+| `scoreboard.py`, `run_dev.sh` | 구조 후보 채점표 |
+| `rescore_practice.py` | 연습 시험 다시 채점(정답 DWR / OPERA / GPS P544, 재보정 없음) |
+| `rescore_uncertainty.py` | E4 구조 오차를 OPERA 정답으로 다시 재고 GPS 포함률 확인 |
+| `refine_plan.py` | 정책 계획을 MODFLOW로 확인·보정 + 금지 반경을 MODFLOW로 탐색(같은 신뢰도 비용 비교) |
+| `verify_ban_radius.py` | 금지 반경안(선형)의 MODFLOW 확인(refine_plan.py 이전 단계) |
+| `hybrid_forecast.py` | 결합 예측(추세 + 물리모델 변화) 채점 |
+| `run_all.sh` | 최종 계산 전체 |
+
+### 이전 버전(비교용)
+
+| 폴더 | 내용 |
+|---|---|
+| `results_uniform/`, `results_plan/`, `results_ai/`, `app_real.py` | 10/13 첫 번째 모델(취수 균일 가정, 가정 우물). `AQ_PUMPING=uniform` |
+| `results/` | 10/13 새 버전(v2, 위성 증발산 취수) |
+| `results_simple/` | CVHM2 대신 단순 3개 층 가정 |
+| `results_v4*/` | 구조 후보 4종(연습 시험에서 탈락) |
 
 ## 4. 한계
 
-- 사업자 우물 6개의 위치·용량·비용은 가정이다. 실제 운영 개선이 아니라 실제 자료로 보정한 모델에서의 시뮬레이션 결과다.
-- CVHM2의 지연 배수 압축층은 비지연으로 단순화했고, 13개 층을 4개로 합쳤다.
-- E3는 수로 남쪽(Q208)의 2025년 이후 침하 가속을 과소평가한다(E4 범위 밖으로 나가는 시점이 있음).
-- 검증 기간 GPS 예측은 2015~2022 InSAR 추세를 그대로 연장한 단순 예측(7.2mm)보다 덜 정확하다. 모델이 최근 침하 속도를 작게 본다. 원인 후보: 2015년을 평형 상태로 시작(잔류 침하 없음), 지연 배수 단순화, 경계 수위 고정.
-- E4 90% 범위는 앙상블 5~95% 끝에 구조 오차 1.645σ를 다시 더하는 방식이라 실제 90%보다 넓다. 포함률 94%는 높게 나왔을 수 있다.
-- 가정한 계획 우물 6개(수로 동쪽 약 3km)는 관리기관의 취수 금지구역(수로 양쪽 4km) 안이다. 계산 시연용이다.
-- 새 버전(et) E3의 세립질 투수계수 Kf 6.29m/일은 사전범위 상한에 붙은 값으로 물리적으로 비현실적이다(다른 구조 오차를 메우는 신호).
-- 원본 자료(`raw/`, 약 270MB)는 git에서 뺐다. `fetch_data.py`로 다시 받을 수 있다.
+- 3년 전체 침하량 예측은 단순 추세 연장(7.2mm)보다 아직 부정확하다(v3 E3 21.2mm). 정책·계획은 응답(취수 변화의 효과)으로 정해지므로 응답은 자연 실험으로 따로 확인한다.
+- 관정별 실제 취수(계량) 기록은 비공개다. 위성 증발산·기상·수로 배분율로 추정하고 나머지는 보정한다. 우물 56개 중 신고 양수량이 있는 우물은 5개뿐이다.
+- 연 0.5인치 기준은 이웃 관리기관(Wheeler Ridge-Maricopa) 값이다.
+- 원본 자료(`raw/`, 약 270MB)와 OPERA 원본(.nc)은 git에서 뺐다. 받기 스크립트로 다시 받을 수 있다.
 
 ## 출처
 
 - DWR TRE Altamira InSAR: https://data.cnra.ca.gov/dataset/tre-altamira-insar-subsidence
+- NASA OPERA DISP-S1: https://www.jpl.nasa.gov/go/opera
 - DWR 정기 지하수위: https://data.cnra.ca.gov/dataset/periodic-groundwater-level-measurements
 - GPS(Nevada Geodetic Laboratory): https://geodesy.unr.edu
 - 강수(NOAA GHCN-Daily): https://www.ncei.noaa.gov

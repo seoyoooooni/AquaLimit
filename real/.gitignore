@@ -4,3 +4,7 @@ __pycache__/
 log*.txt
 results*/ckpt_*.json
 .venv/
+data/opera/_done/
+data/opera/_tmp/
+data/opera/F*/
+data/opera/reduced/

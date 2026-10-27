@@ -1,0 +1,35 @@
+{
+ "frames": {
+  "36541": {
+   "orbit": "asc",
+   "months": 116,
+   "cells_with_data": 3906,
+   "bridged_gaps": []
+  },
+  "38502": {
+   "orbit": "desc",
+   "months": 114,
+   "cells_with_data": 3906,
+   "bridged_gaps": []
+  },
+  "38503": {
+   "orbit": "desc",
+   "months": 111,
+   "cells_with_data": 3906,
+   "bridged_gaps": [
+    {
+     "from": "20210411",
+     "to": "20210417",
+     "days": 6
+    },
+    {
+     "from": "20210628",
+     "to": "20210716",
+     "days": 18
+    }
+   ]
+  }
+ },
+ "anchor": "2016-07~12 평균을 DWR에 맞춤",
+ "stable_cells": 472
+}

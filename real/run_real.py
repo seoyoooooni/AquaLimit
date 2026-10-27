@@ -21,7 +21,7 @@ plt.rcParams.update({"axes.unicode_minus": False, "font.size": 11, "axes.spines.
                      "figure.facecolor": "#fcfcfb", "axes.facecolor": "#fcfcfb", "savefig.facecolor": "#fcfcfb"})
 
 
-def main(n_iter=6, n_post=30, e3_only=False):
+def main(n_iter=6, n_post=30, e3_only=False, dev=False):
     t0 = time.time()
     site = r.load_site()
     res = {}
@@ -47,6 +47,17 @@ def main(n_iter=6, n_post=30, e3_only=False):
         cache[key] = {"th": th.tolist(), "cov": cov.tolist(), "hist": h}
         json.dump(cache, open(cache_f, "w"), default=float)
         return th, cov, h
+    if dev:                                       # 연습 시험: 2019년까지 보정 → 2020~2022 위성 예측 (scoreboard.py)
+        import scoreboard as sb
+        thh, covh, hh = cal("H2019", "[연습 시험] 2015.7~2019.12로 보정", use_insar=True, cal_end=sb.DEV_CAL_END)
+        d = sb.dev_score(site, thh, r)
+        d["at_bound"] = sb.params_at_bound(r.NAMES, thh, r.PRIOR_MEAN, r.PRIOR_SD)
+        d.update({"variant": r.VARIANT, "params": {"names": r.NAMES, "H2019": thh.tolist()}, "minutes": round((time.time() - t0) / 60, 1)})
+        json.dump(d, open(OUT / "results_dev.json", "w"), ensure_ascii=False, indent=1, default=float)
+        print(f"[{r.VARIANT}] 연습 시험(2020~22 위성, 수로 2km): 모델 {d['near']['model_rmse']:.1f}mm / 추세 연장 {d['near']['trend_rmse']:.1f}mm / "
+              f"변화 0 {d['near']['zero_rmse']:.1f}mm, 편향 {d['near']['model_bias']:+.1f}mm. 범위 끝: {d['at_bound']} ({d['minutes']}분)")
+        sb.collect()
+        return
     th3, cov3, h3 = cal("E3", "[E3] 관측정 수위 + 위성(InSAR)으로 역산", use_insar=True)
     if e3_only:                                   # 입력별 기여 실험: E3 보정 + GPS 채점만
         o3pt = r.run_model(site, th3)
@@ -60,7 +71,9 @@ def main(n_iter=6, n_post=30, e3_only=False):
         return
     if r.OPS:                                     # 운영 모델: E3(모든 자료) + E4 앙상블. 구조 오차는 검증 모델(v3)에서 잰 값
         print("[E4] 운영 모델 사후분포 앙상블"); M4, o4 = r.posterior_ensemble(site, th3, cov3, n=n_post)
-        vf = r.HERE / "results_v3" / "results.json"
+        vf = r.HERE / f"results_{r.TAG.replace('ops', '')}" / "results.json"   # 구조 오차는 같은 자료로 만든 검증 모델 값
+        if not vf.exists():
+            vf = r.HERE / "results_v3" / "results.json"
         err = json.load(open(vf)).get("model_error") if vf.exists() else None
         o3pt = r.run_model(site, th3)
         np.save(OUT / "E4_members.npy", M4)
@@ -72,11 +85,12 @@ def main(n_iter=6, n_post=30, e3_only=False):
         json.dump(res, open(OUT / "results.json", "w"), ensure_ascii=False, indent=1, default=float)
         figures(site, o3pt, o3pt, o4, o4, err)
         v = res["E3"]
-        L = ["# 운영 모델 (v3ops): 2015.7~2026.4 모든 자료로 보정\n",
-             "계획·정책 비교·AI에 쓰는 모델이다. InSAR(2015.7~2022.12) + 관측정 수위(전 기간) + 수로 GPS(2023~2026.4)로 보정했다. "
+        ins = ("NASA OPERA 위성(2015.7~2026.2, 2016.7 전은 DWR)" if r.INSAR == "opera" else "InSAR(2015.7~2022.12)")
+        L = [f"# 운영 모델 ({r.TAG}): 2015.7~2026.4 모든 자료로 보정\n",
+             f"계획·정책 비교·AI에 쓰는 모델이다. {ins} + 관측정 수위(전 기간) + 수로 GPS(2023~2026.4)로 보정했다. "
              "GPS를 보정에 썼으므로 아래 GPS 오차는 **검증 점수가 아니라 적합도**다. 예측 성능은 검증 모델(results_v3/)로 말한다.\n",
              "| 항목 | 값 |", "|---|---|",
-             f"| InSAR 적합 RMSE (2015~2022) | {v['cal'].get('insar_rmse', float('nan')):.1f} mm |",
+             f"| InSAR 적합 RMSE ({'2015~2026.2' if r.INSAR == 'opera' else '2015~2022'}) | {v['cal'].get('insar_rmse', float('nan')):.1f} mm |",
              f"| GPS 적합 RMSE (2023~2026.4) | {v['val'].get('gps_rmse', float('nan')):.1f} mm |",
              f"| 수위 RMSE (2023~2026.4) | {v['val'].get('head_rmse', float('nan')):.2f} m |", "",
              "| 파라미터 | 사전값 | E3 (±1σ) |", "|---|---|---|"]
@@ -118,7 +132,7 @@ def main(n_iter=6, n_post=30, e3_only=False):
 
 def warm_start():
     """역산 시작점: 이전 버전 E3 해(같은 이름 파라미터)를 쓰고, 새 파라미터는 사전 평균. 목적함수(사전분포 포함)는 그대로라 결과의 뜻은 같고 빨라진다."""
-    for d in [r.HERE / "results_v3", r.HERE / "results"]:
+    for d in [r.HERE / f"results_{r.VARIANT}", r.HERE / "results_v3", r.HERE / "results"]:
         f = d / "results.json"
         if d != OUT and f.exists():
             p = json.load(open(f))["params"]
@@ -298,4 +312,4 @@ if __name__ == "__main__":
         report(json.load(open(OUT / "results.json")))
         print((OUT / "RESULTS.md").read_text(encoding="utf-8"))
     else:
-        main(e3_only="--e3-only" in sys.argv)
+        main(e3_only="--e3-only" in sys.argv, dev="--dev" in sys.argv)

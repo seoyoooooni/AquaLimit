@@ -1,0 +1,30 @@
+{
+ "retro": {
+  "min_radius_km": 5.6,
+  "min_ban_cost": 112347062.55003144,
+  "fixed_radius_km": 6.0,
+  "fixed_ban_cost": 117722731.31295785,
+  "aqualimit_cost": 97346704.44597961
+ },
+ "습한 해": {
+  "min_radius_km": 4.7,
+  "min_ban_cost": 25314238.697230592,
+  "fixed_radius_km": 6.0,
+  "fixed_ban_cost": 32112323.92098062,
+  "aqualimit_cost": 22042550.71348137
+ },
+ "평년": {
+  "min_radius_km": 5.3,
+  "min_ban_cost": 32721001.727996223,
+  "fixed_radius_km": 6.0,
+  "fixed_ban_cost": 37817065.40473204,
+  "aqualimit_cost": 30157097.388536137
+ },
+ "가뭄·폭염": {
+  "min_radius_km": 6.0,
+  "min_ban_cost": 45632477.10682255,
+  "fixed_radius_km": 6.0,
+  "fixed_ban_cost": 45632477.10682255,
+  "aqualimit_cost": 42482022.52026262
+ }
+}

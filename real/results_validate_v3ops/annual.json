@@ -1,0 +1,59 @@
+{
+ "variant": "v3ops",
+ "n_members": 30,
+ "rows": [
+  {
+   "station": "P544",
+   "event": "습한 해(배분율 5% → 100%)",
+   "gps_before": 10.666666666664241,
+   "gps_after": 1.3533333333325572,
+   "gps_change": -9.313333333331684,
+   "model_before": 11.207899125888751,
+   "model_after": 1.051277941925484,
+   "model_change_med": -10.114615071571762,
+   "model_change_p5": -12.764388741467458,
+   "model_change_p95": -9.190246424176506,
+   "agree": true
+  },
+  {
+   "station": "P544",
+   "event": "취수 금지(배분율 40% → 50%)",
+   "gps_before": 5.229000000006636,
+   "gps_after": 6.7739999999903375,
+   "gps_change": 1.5449999999837019,
+   "model_before": 13.621063896300718,
+   "model_after": 13.153861057504159,
+   "model_change_med": 0.3731163500554828,
+   "model_change_p5": -2.319860807950364,
+   "model_change_p95": 5.946915330504937,
+   "agree": true
+  },
+  {
+   "station": "Q204",
+   "event": "취수 금지(배분율 40% → 50%)",
+   "gps_before": 15.35533333334024,
+   "gps_after": 15.94966666666005,
+   "gps_change": 0.5943333333198098,
+   "model_before": 8.865185345640803,
+   "model_after": 8.559711958074907,
+   "model_change_med": -0.08376573304698098,
+   "model_change_p5": -1.0733029985825886,
+   "model_change_p95": 2.106134470138161,
+   "agree": true
+  },
+  {
+   "station": "Q208",
+   "event": "취수 금지(배분율 40% → 50%)",
+   "gps_before": 20.935499999999593,
+   "gps_after": 21.903666666672507,
+   "gps_change": 0.9681666666729143,
+   "model_before": 11.76304112598001,
+   "model_after": 12.141203887056868,
+   "model_change_med": 0.4368917100927945,
+   "model_change_p5": -0.7500895826802917,
+   "model_change_p95": 2.3272901412662343,
+   "agree": true
+  }
+ ],
+ "minutes": 3.1
+}

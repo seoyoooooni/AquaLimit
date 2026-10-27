@@ -24,7 +24,9 @@ MARGINS = [0.0, 0.25, 0.5, 1.0]          # 구조 오차 여유: 실제 땅이 �
 
 def structural_margin():
     """응답 구조 오차 크기: 자연 실험(validate_response.py)에서 GPS 속도 변화 / 모델 속도 변화의 비율로 잰다. 없으면 0.25."""
-    f = r.HERE / f"results_validate_{r.VARIANT.replace('ops', '')}" / "results.json"
+    f = r.HERE / f"results_validate_{r.TAG.replace('ops', '')}" / "results.json"
+    if not f.exists():
+        f = r.HERE / f"results_validate_{r.VARIANT.replace('ops', '')}" / "results.json"
     if f.exists():
         ch = json.load(open(f))["changes"]
         ratio = [c["gps_change"] / c["model_change_med"] for c in ch

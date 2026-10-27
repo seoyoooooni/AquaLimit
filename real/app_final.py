@@ -22,11 +22,11 @@ import plan_real as p  # noqa: E402
 HERE = Path(__file__).resolve().parent
 VAL = HERE / "results_v3"                     # 검증 모델(예측 성능)
 OPS = r.result_dir("model", create=False)     # 운영 모델
-POL = HERE / f"results_policy_{r.VARIANT}"
+POL = HERE / f"results_policy_{r.TAG}"
 PLAN = r.result_dir("plan", create=False)
 AI = r.result_dir("ai", create=False)
 VALR = HERE / "results_validate_v3"
-VALO = HERE / f"results_validate_{r.VARIANT}"
+VALO = HERE / f"results_validate_{r.TAG}"
 REG = 12.7
 st.set_page_config(page_title="AquaLimit", layout="wide")
 MAP = getattr(go, "Scattermap", None) or go.Scattermapbox
@@ -65,7 +65,13 @@ def load():
     oil = json.load(open(HERE / "data" / "oil_fields_in_box.geojson"))
     gps = site["gps"].groupby("station").agg(lat=("lat", "first"), lon=("lon", "first")).reset_index()
     obs = V.gps_rates(site)
-    gps["rate_post"] = [obs[s][list(V.WINDOWS)[2]] for s in gps.station]
+    # 수로 GPS는 여름에 올라가고 겨울에 내려가는 계절 변동이 있어서 같은 달 → 같은 달 1년 단위로 잰다(최근 1년 2025.3→2026.3).
+    gm = site["gps"].pivot_table(index="month", columns="station", values="up_mm")
+    def annual(st_, end="2026-03"):
+        e = pd.Period(end, "M"); sub = lambda m: gm.reindex([m - 1, m, m + 1])[st_]
+        a, b = sub(e - 12), sub(e)
+        return float(-(b.mean() - a.mean())) if a.notna().sum() >= 2 and b.notna().sum() >= 2 else np.nan
+    gps["rate_post"] = [annual(s) for s in gps.station]
     return dict(site_aq=site["aq_pts"], pts=pts, pts_ll=[ll(*q) for q in pts], wells=wells, ag=ag,
                 ag_ll=np.array([ll(*c) for c in ag]), ag_dist=np.array([dist[a, b] for a, b in ag]),
                 buffer_ll=np.array([ll(*c) for c in ag if dist[c[0], c[1]] <= pol.BUFFER_KM]),
@@ -100,7 +106,7 @@ def base_map(height=520):
     fig.add_trace(MAP(lat=aq[:, 1], lon=aq[:, 0], mode="markers", marker=dict(size=4, color="black"), name="California Aqueduct"))
     g = D["gps"]
     fig.add_trace(MAP(lat=g.lat, lon=g.lon, mode="markers+text", text=[f"{s} {x:.0f}mm/년" if np.isfinite(x) else s for s, x in zip(g.station, g.rate_post)],
-                      textposition="middle left", marker=dict(size=12, color="#ffd400"), name="GPS (금지 후 침하 속도)"))
+                      textposition="middle left", marker=dict(size=12, color="#ffd400"), name="GPS (최근 1년 침하 속도)"))
     fig.update_layout(**{MAPKEY: dict(style="open-street-map", center=dict(lat=35.64, lon=-119.75), zoom=9.2)},
                       height=height, margin=dict(t=0, b=0, l=0, r=0), legend=dict(x=0, y=1, bgcolor="rgba(255,255,255,0.75)"))
     return fig
@@ -113,19 +119,28 @@ with t1:
     with c2:
         st.markdown("#### 주정부 수로가 지하수 때문에 꺼지고 있다")
         g = D["gps"].dropna(subset=["rate_post"])
-        st.metric("수로 GPS 침하 속도 (2024.12~2026.4)", f"연 {g.rate_post.min():.0f}~{g.rate_post.max():.0f}mm",
+        st.metric("수로 GPS 침하 속도 (최근 1년, 2025.3→2026.3)", f"연 {g.rate_post.min():.0f}~{g.rate_post.max():.0f}mm",
                   f"기준(연 {REG}mm)의 최대 {g.rate_post.max() / REG:.1f}배", delta_color="inverse")
         st.markdown("- 가뭄 해에 수로 물이 줄면(2021·2022년 배분율 5%) 농장이 지하수를 뽑는다 → 땅이 꺼진다 → 수로가 휘어 물을 덜 보낸다.\n"
                     "- 관리기관은 **2024.12.9부터 수로 양쪽 2.5마일 취수를 전면 금지**했다(위반 시 $500/AF).\n"
-                    "- **그런데 금지 뒤에도 GPS는 계속, 오히려 더 빨리 꺼지고 있다.** 원인을 모르면 다음 조치도 정할 수 없다.")
+                    "- **그런데 금지 뒤에도 침하가 줄지 않았다.** 금지 후 1년은 수로 물이 더 많았는데도(배분율 40% → 50%) GPS 속도가 그대로다. 원인을 모르면 다음 조치도 정할 수 없다.")
         img = VALO / "validate-2-ban.png"
         if img.exists():
             st.image(str(img), width="stretch")
             dec = (jload(VALO / "results.json") or {}).get("decomposition", {}).get("aqueduct")
             if dec:
-                tot = max(dec["ban"]["med"], 1e-9)
-                st.info(f"AquaLimit 원인 분석(운영 모델): 금지를 지켜도 수로 침하의 **{dec['legacy']['med'] / tot * 100:.0f}%는 과거 취수로 이미 진행 중인 침하**, "
-                        f"**{dec['outside']['med'] / tot * 100:.0f}%는 금지구역 밖 취수**다.")
+                # 금지 준수 시 침하가 0 근처라 비율(%)로 나누면 값이 폭주한다 → mm/년으로 보여 준다
+                st.info(f"AquaLimit 원인 분석(운영 모델, 금지 후 수로 침하 mm/년 중앙값): 추정 실제 **{dec['asis']['med']:.1f}** = "
+                        f"과거 취수 영향 {dec['legacy']['med']:+.1f} + 금지구역 밖 취수 {dec['outside']['med']:+.1f} + "
+                        f"**금지구역 안에서 계속된 취수 {dec['inside_if_continued']['med']:+.1f}**. 금지가 완전히 지켜졌다면 **{dec['ban']['med']:.1f}**.")
+    op = jload(HERE / "results_opera" / "results.json")
+    if op and (HERE / "results_opera" / "opera-2-ban-map.png").exists():
+        st.markdown("#### NASA 위성으로 본 금지 전후 (모델 없음)")
+        st.image(str(HERE / "results_opera" / "opera-2-ban-map.png"), width="stretch")
+        d_ = op["did"]
+        st.info(f"금지 전 1년 → 후 1년 침하 속도 변화: 금지구역 안 **{d_['in_change_med']:+.1f}**, 밖 **{d_['out_change_med']:+.1f}**mm/년. "
+                f"금지가 지켜졌다면 안쪽이 더 좋아졌어야 하는데, 오히려 **{d_['did_med']:+.1f}mm/년 덜 좋아졌다**"
+                f"(90% 범위 {d_['p5']:+.1f}~{d_['p95']:+.1f}). 초록 원 = 현장 확인 후보(금지 후 가장 빨리 꺼지는 칸).")
 
 with t2:
     o = jload(POL / "results.json") or {}
@@ -139,6 +154,10 @@ with t2:
     else:
         which = st.selectbox("상황", list(blocks))
         b = blocks[which]
+        ref = jload(POL / "refine.json") or {}             # refine_plan.py: MODFLOW로 확인·보정한 AquaLimit 계획 + MODFLOW로 찾은 금지 반경
+        rtag = "retro" if which.startswith("2021") else which.split(": ", 1)[-1]
+        rb = ref.get(rtag) or {}
+        aqm = rb.get("aqualimit")
         rows = []
         for k, v in b["policies"].items():
             if v.get("feasible"):
@@ -149,7 +168,14 @@ with t2:
             else:
                 rows.append({"정책": k, "대체 용수 (백만 m³)": None, "비용 (백만 $)": None, "수로 최대 침하 (mm, MODFLOW 확인)": None,
                              "기준 지키는 수로 지점": "실행 불가: " + v.get("reason", "")})
+        if aqm:
+            rows.append({"정책": "AquaLimit(규제 기준, MODFLOW로 확인·보정)", "대체 용수 (백만 m³)": round(aqm["replace_m3"] / 1e6, 2),
+                         "비용 (백만 $)": round(aqm["cost"] / 1e6, 2), "수로 최대 침하 (mm, MODFLOW 확인)": round(aqm["worst_med"], 1),
+                         "기준 지키는 수로 지점": f"{aqm['ok_points'] * 100:.0f}%", "모든 지점 기준 확률": f"{aqm['ok_all_prob'] * 100:.0f}%"})
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        if aqm:
+            st.caption("'AquaLimit(규제 기준 0.5인치/년)'은 선형 응답으로 푼 계획이라 MODFLOW로 돌리면 일부 구성원에서 기준을 넘는다(모든 지점 확률 60~97%). "
+                       "AquaLimit은 계획을 MODFLOW로 확인하고 어긋난 만큼 고쳐 다시 푼다(3~4회) → 모든 구성원·모든 지점 기준 안.")
         ban = b["policies"].get("4km 전면 금지(2025 실제 정책)", {})
         aqr = b["policies"].get("AquaLimit(규제 기준 0.5인치/년)", {})
         aqb = b["policies"].get("AquaLimit(금지와 같은 예산)", {})
@@ -159,10 +185,43 @@ with t2:
         if ban.get("feasible") and aqb.get("feasible"):
             m1.metric("같은 예산, AquaLimit 배분", f"{aqb.get('reg_ok_points', 0) * 100:.0f}%",
                       f"{(aqb.get('reg_ok_points', 0) - ban.get('reg_ok_points', 0)) * 100:+.0f}%p vs 전면 금지")
-        if ban.get("feasible") and aqr.get("feasible"):
+        if ban.get("feasible") and aqm:
+            m2.metric("모든 지점 기준 달성에 필요한 비용 (MODFLOW 확인)", f"${aqm['cost'] / 1e6:.1f}M", f"{(aqm['cost'] - ban['cost']) / 1e6:+.1f}M vs 전면 금지", delta_color="off")
+        elif ban.get("feasible") and aqr.get("feasible"):
             m2.metric("모든 지점 기준 달성에 필요한 비용", f"${aqr['cost'] / 1e6:.1f}M", f"{(aqr['cost'] - ban['cost']) / 1e6:+.1f}M vs 전면 금지", delta_color="off")
         st.info("전면 금지는 같은 보호 수준에서는 효율적인 편이지만, 평년·가뭄에는 수로 기준을 다 지키지 못한다. "
                 "AquaLimit은 기준을 지키는 데 필요한 추가 조치(금지구역 밖 우물별 감량)를 최소 비용으로 정한다.")
+        names = {"retro": "2021~22 대가뭄 재현", "습한 해": "2026.5~7 습한 해", "평년": "2026.5~7 평년", "가뭄·폭염": "2026.5~7 가뭄·폭염"}
+        if any(k != "_meta" and v.get("aqualimit") for k, v in ref.items()):
+            fxr = (ref.get("_meta") or {}).get("fixed_radius_km")
+            st.markdown("##### 그럼 금지 반경을 넓히면? — 같은 신뢰도(MODFLOW로 모든 구성원·모든 수로 지점 기준 달성)에 드는 비용")
+            rr = []
+            for k, v in ref.items():
+                if k == "_meta" or not v.get("aqualimit"):
+                    continue
+                a, bm, fx = v["aqualimit"]["cost"], v.get("ban_min"), (v.get("ban_fixed") or {}).get("cost")
+                rr.append({"상황": names.get(k, k), f"금지: 고정 규칙 {fxr:.1f}km": f"${fx / 1e6:.1f}M" if fx else "-",
+                           "금지: 그해 최소 반경": f"{bm['radius_km']:.1f}km ${bm['cost'] / 1e6:.1f}M" if bm else "-",
+                           "AquaLimit": f"${a / 1e6:.1f}M",
+                           "절약(고정 규칙 대비)": f"${(fx - a) / 1e6:.1f}M ({(fx - a) / fx * 100:.0f}%)" if fx else "-",
+                           "절약(최소 반경 대비)": f"${(bm['cost'] - a) / 1e6:.1f}M ({(bm['cost'] - a) / bm['cost'] * 100:.0f}%)" if bm else "-"})
+            st.dataframe(pd.DataFrame(rr), hide_index=True, width="stretch")
+            st.caption(f"반경은 한 번 정하면 해마다 바꾸기 어렵다. 가뭄에도 지키려면 {fxr:.1f}km가 필요하고, 평년·습한 해엔 필요 이상으로 멈춘다. "
+                       "'그해 최소 반경'은 날씨를 미리 알고 0.1km 단위로 가장 유리하게 고른 경우다. 금지·AquaLimit 모두 MODFLOW 앙상블로 직접 확인했다"
+                       "(results_policy_v3ops/RESULTS_refine.md).")
+        else:
+            rad = jload(POL / "radius_summary.json")
+            if rad:
+                st.markdown("##### 그럼 금지 반경을 넓히면? — 같은 기준(모든 수로 지점)을 지키는 비용 (선형 응답)")
+                rr = []
+                for k, v in rad.items():
+                    fx = v.get("fixed_ban_cost")
+                    rr.append({"상황": names.get(k, k), "금지: 그해 최소 반경": f"{v['min_radius_km']:.1f}km ${v['min_ban_cost'] / 1e6:.1f}M",
+                               f"금지: 고정 {v.get('fixed_radius_km') or 0:.0f}km": f"${fx / 1e6:.1f}M" if fx else "-",
+                               "AquaLimit": f"${v['aqualimit_cost'] / 1e6:.1f}M",
+                               "절약(고정 규칙 대비)": f"${(fx - v['aqualimit_cost']) / 1e6:.1f}M ({(fx - v['aqualimit_cost']) / fx * 100:.0f}%)" if fx else "-"})
+                st.dataframe(pd.DataFrame(rr), hide_index=True, width="stretch")
+                st.caption("선형 응답(MODFLOW 미분)으로 계산했다(results_policy_v3ops/RESULTS_radius.md). MODFLOW 확인: AQ_VARIANT=v3ops python3 refine_plan.py")
         cv = [c for c in b["curve"] if c["feasible"]]
         if cv:
             fig = go.Figure()
@@ -210,7 +269,10 @@ with t3:
         else:
             cells = [tuple(w) for w in D["wells"]]
             src = "기본값: 실제 신고 우물 6개(금지구역 밖)"
-        caps = np.array([D["wcr_cap"].get(c, D["default_cap"]) for c in cells])
+        if src.startswith("기본값"):                 # 기본 사업자 우물 6개는 계획 계산(run_plan.py)과 같은 용량을 쓴다(같은 칸의 다른 신고 우물은 합치지 않음)
+            caps = np.array(D["cap0"], float)
+        else:
+            caps = np.array([D["wcr_cap"].get(c, D["default_cap"]) for c in cells])
         costs = np.array([D["cost0"][[tuple(w) for w in D["wells"]].index(c)] if c in [tuple(w) for w in D["wells"]] else D["default_cost"] for c in cells])
         F = D["feats"](cells)
         X = np.c_[np.repeat((D["M_big"] - r.PRIOR_MEAN) / r.PRIOR_SD, len(cells), 0), np.tile(F, (len(D["M_big"]), 1))]
@@ -259,7 +321,15 @@ with t4:
             st.caption(f"E4 90% 예측 범위가 실제 GPS를 포함한 비율 {e4['gps_cov90_with_model_error'] * 100:.0f}% (평균 폭 {e4.get('gps_band90_mean_width_mm', 0):.0f}mm)")
         if (VAL / "real-3-gps-validation.png").exists():
             st.image(str(VAL / "real-3-gps-validation.png"), width="stretch")
-    if (VALR / "validate-1-rates.png").exists():
+    ann = jload(VALR / "annual.json")
+    if ann:
+        st.markdown("#### 자연 실험: 수로 물이 늘고 줄 때 침하 속도 변화를 맞히는가 (검증 모델, 같은 달 → 같은 달 1년 단위)")
+        st.dataframe(pd.DataFrame([{"GPS": x["station"], "사건": x["event"], "GPS 변화 (mm/년)": round(x["gps_change"], 1),
+                                    "모델 변화 (중앙값)": round(x["model_change_med"], 1),
+                                    "모델 90% 범위": f"{x['model_change_p5']:+.1f} ~ {x['model_change_p95']:+.1f}",
+                                    "일치": "예" if x["agree"] else "아니오"} for x in ann["rows"]]), hide_index=True, width="stretch")
+        st.caption("습한 해(배분율 5% → 100%) 감속은 크기까지 맞힌다. 취수 금지 후에는 모델이 감속을 예측했지만 실제로는 줄지 않았다 → 보이지 않는 취수 가능성(① 탭).")
+    elif (VALR / "validate-1-rates.png").exists():
         st.markdown("#### 자연 실험: 수로 물이 늘고 줄 때 침하 속도 변화를 맞히는가")
         st.image(str(VALR / "validate-1-rates.png"), width="stretch")
     st.caption("운영 모델(계획·정책에 쓰는 모델)은 검증이 끝난 뒤 2023~2026 GPS까지 넣어 다시 보정했다. 실제 예보 시스템처럼 새 위성·GPS 자료가 들어올 때마다 갱신한다.")

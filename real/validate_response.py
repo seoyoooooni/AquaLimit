@@ -30,7 +30,7 @@ import run_real as rr          # 글꼴 설정
 import plan_real as pr
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / f"results_validate_{r.VARIANT if r.PUMPING == 'et' else 'uniform'}"
+OUT = HERE / f"results_validate_{r.TAG if r.PUMPING == 'et' else 'uniform'}"
 OUT.mkdir(exist_ok=True)
 BUFFER_KM = 4.02               # 2.5마일
 BAN_MONTH = "2024-12"

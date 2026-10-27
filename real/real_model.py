@@ -82,7 +82,17 @@ if STRUCTURE == "cvhm2" and PUMPING == "et":
 # 모델 변형(새 버전 et에서만): v2 = 10/13 버전(results/), v3 = 최종 후보(지연 압밀 + 과거 이력 spin-up + 관개 회귀수 함양 + 현실적 사전범위)
 #   입력별 기여 실험: v3_nolandsat(밭별 차이 없음), v3_noweather(해마다 같은 기상), v3_noalloc(해마다 같은 수로 배분율)
 VARIANT = os.environ.get("AQ_VARIANT", "v3") if (STRUCTURE == "cvhm2" and PUMPING == "et") else "base"
-V3 = VARIANT.startswith("v3")
+V3 = VARIANT.startswith(("v3", "v4"))
+# v4 후보 구조(연습 시험으로 하나씩 비교): AQ_VARIANT=v4-corc-pfrac 처럼 '-'로 이어 붙인다
+#   corc : 코코란 점토도 지연 압밀   pfrac: 취수의 깊은/얕은 층 비율을 보정값으로
+#   emult: 탄성 압축 크기 배수를 보정값으로   kv9: 지연 압밀 투수계수를 3×3 구역별로
+#   aq   : 수로 2km 안 띠의 압축 계수 배수(북·남 2개) — 10/23 추가, 3년 예측 개선 후보
+FEAT = set(VARIANT.split("-")[1:]) - {"ops"} if VARIANT.startswith("v4") else set()
+# 위성 침하 자료: dwr(DWR TRE Altamira, 기본) 또는 opera(NASA OPERA DISP-S1, prepare_opera.py --build로 만든 것).
+#   DWR는 2023년 이후 GPS와 어긋나 2022년까지만 쓴다. OPERA는 2026.2까지 GPS와 같은 방향이라 운영 모델(v3ops)에서 2023년 이후도 보정에 쓴다.
+#   결과 폴더 이름에 '-opera'가 붙는다(예: results_v3ops-opera/). 실행: AQ_INSAR=opera AQ_VARIANT=v3ops python3 run_real.py
+INSAR = os.environ.get("AQ_INSAR", "dwr")
+TAG = VARIANT + ("-opera" if INSAR == "opera" else "")
 OPS = VARIANT.endswith("ops")   # 운영 모델(v3ops): 2023~2026 GPS까지 보정에 쓴다 → 계획·정책·AI용. 검증 점수는 v3(2022년까지 보정)로 말한다
 SIG_GPS_CAL = 2.0               # mm, (GPS가 없을 때 기본값)
 GPS_WEIGHT = 0.5                # 운영 모델 보정: GPS 전체 가중치 = InSAR 전체 가중치 × 0.5
@@ -103,6 +113,15 @@ if V3:
         ("log10_Kvdb_s", np.log10(1e-5), 0.7), # 같은 값, 남쪽 절반(Q204·Q208·Q213 쪽). GPS: 북쪽은 2023년에 바로 반등, 남쪽은 계속 침하
         ("log10_spin", 0.0, 0.3),              # 2005~2015 과거 취수 = 2015~2022 계절 평균 × 이 배수
     ]
+    if "kv9" in FEAT:                          # 남북 2개 대신 3×3 구역
+        PARAMS_CVHM2 = [q for q in PARAMS_CVHM2 if q[0] not in ("log10_Kvdb", "log10_Kvdb_s")] + \
+                       [(f"log10_Kvdb_z{i}", np.log10(1e-5), 0.7) for i in range(9)]
+    if "pfrac" in FEAT:
+        PARAMS_CVHM2 = PARAMS_CVHM2 + [("pfrac_up", 0.6, 0.15)]        # 하부 대수층 위층(G3)으로 가는 취수 비율(나머지 G4)
+    if "emult" in FEAT:
+        PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_emult", 0.0, 0.3)]      # 탄성 압축 계수 배수
+    if "aq" in FEAT:                           # 수로 2km 안 띠의 압축 계수 배수(북·남). 위성: 수로 2km 안 침하가 2~4km보다 2배 크다(2022.12 누적 84 vs 39mm)
+        PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_mSk_aq_n", 0.0, 0.5), ("log10_mSk_aq_s", 0.0, 0.5)]
     if VARIANT.endswith("ops"):
         # 운영 모델: 2024.12 취수 금지 이후 실제 취수가 위성 추정과 얼마나 달랐는지 GPS로 거꾸로 추정한다(계량 기록 비공개)
         PARAMS_CVHM2 = PARAMS_CVHM2 + [
@@ -124,7 +143,7 @@ RESULT_DIRS = {"et": {"model": "results", "plan": "results_plan_et", "ai": "resu
 
 def model_version():
     return {"structure": STRUCTURE, "pumping": PUMPING, "et_source": ET_SOURCE if PUMPING == "et" else None,
-            "variant": VARIANT if PUMPING == "et" else None, "param_names": NAMES}
+            "variant": VARIANT if PUMPING == "et" else None, "insar": INSAR, "param_names": NAMES}
 
 
 def result_dir(kind, create=True):
@@ -134,7 +153,7 @@ def result_dir(kind, create=True):
     else:
         d = HERE / RESULT_DIRS[PUMPING][kind]
         if PUMPING == "et" and VARIANT != "v2":
-            d = HERE / {"model": f"results_{VARIANT}", "plan": f"results_plan_{VARIANT}", "ai": f"results_ai_{VARIANT}"}[kind]
+            d = HERE / {"model": f"results_{TAG}", "plan": f"results_plan_{TAG}", "ai": f"results_ai_{TAG}"}[kind]
     if create:
         d.mkdir(exist_ok=True)
     return d
@@ -155,12 +174,15 @@ def check_version(d):
         return
     cur = model_version()
     diff = [k for k in ("structure", "pumping", "et_source", "variant") if k in v and v[k] != cur[k]]
+    if v and v.get("insar", "dwr") != cur["insar"]:                # insar 항목이 없는 예전 폴더는 dwr
+        diff.append("insar")
     if names is not None and list(names) != list(NAMES):
         diff.append("param_names")
     if diff:
         other = v.get("pumping") or ("uniform" if names is not None and len(names) == len(PARAMS_CVHM2_BASE) else "et")
         env = f"AQ_PUMPING={other}" + (f" AQ_ET={v['et_source']}" if v.get("et_source") else "") + \
-              (f" AQ_VARIANT={v['variant']}" if v.get("variant") else (" AQ_VARIANT=v2" if other == "et" else ""))
+              (f" AQ_VARIANT={v['variant']}" if v.get("variant") else (" AQ_VARIANT=v2" if other == "et" else "")) + \
+              (" AQ_INSAR=opera" if v.get("insar") == "opera" else "")
         raise RuntimeError(f"{d.name}/ 결과는 다른 모델 버전으로 만든 것입니다(다른 항목: {', '.join(diff)}). "
                            f"폴더: {dict((k, v.get(k)) for k in ('structure', 'pumping', 'et_source'))}, "
                            f"지금: {dict((k, cur[k]) for k in ('structure', 'pumping', 'et_source'))}. "
@@ -170,14 +192,20 @@ def check_version(d):
 # ---------------------------------------------------------------- 자료
 def load_site():
     cells = pd.read_csv(DATA / "insar_grid500m_cells.csv")
-    z = np.load(DATA / "insar_grid500m_monthly.npz")
+    f_ins = DATA / ("opera_grid500m_monthly.npz" if INSAR == "opera" else "insar_grid500m_monthly.npz")
+    if not f_ins.exists():
+        raise FileNotFoundError(f"{f_ins.name} 없음: python3 prepare_opera.py --build 먼저 실행")
+    z = np.load(f_ins)
     months = pd.PeriodIndex(z["months"], freq="M")
     k0, k1 = list(months).index(pd.Period(REF_MONTH, "M")), list(months).index(pd.Period(END, "M"))
     disp = -z["disp_mm"][:, k0:k1 + 1].astype(float)              # 아래로 양수
     months = months[k0:k1 + 1]
     nx, ny = (int(cells.ix.max()) + 1 + F - 1) // F, (int(cells.iy.max()) + 1 + F - 1) // F   # 모델 격자 크기
     oil = cells.oil_field.fillna("").astype(str).str.len() > 0
-    use = (~oil) & (cells.npts >= 5)
+    if INSAR == "opera":                                           # OPERA는 30m 화소 품질 마스크를 거친 칸 평균: 자료가 충분한 칸만
+        use = (~oil) & (np.isfinite(disp).sum(1) >= 24)
+    else:
+        use = (~oil) & (cells.npts >= 5)
 
     wells = pd.read_csv(DATA / "wells.csv")
     gwl = pd.read_csv(DATA / "gwl_measurements.csv", parse_dates=["msmt_date"])
@@ -517,7 +545,7 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
     kh[1] = np.where(corc_present, np.minimum(kh[1], 0.05), kh[2])
     idom = np.repeat(active[None], 4, 0).astype(int)
     sim = flopy.mf6.MFSimulation(sim_name="aq", sim_ws=ws, exe_name=MF6, verbosity_level=0)
-    flopy.mf6.ModflowTdis(sim, nper=len(days), perioddata=[(d, (NSTP_SPIN if k < ns else 1), 1.0) for k, d in enumerate(days)],
+    flopy.mf6.ModflowTdis(sim, nper=len(days), perioddata=[(d, (NSTP_SPIN if k < ns else NSTP_MONTH), 1.0) for k, d in enumerate(days)],
                           time_units="days")
     if robust:
         flopy.mf6.ModflowIms(sim, complexity="complex", outer_dvclose=(2e-3 if V3 else 1e-4), inner_dvclose=1e-5, outer_maximum=200,
@@ -539,7 +567,8 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
                                             for k in range(len(days))})
     ag = np.argwhere(site["ag"] & active)
     qc = (lambda k, iy, ix: float(q[k, iy, ix])) if q.ndim == 3 else (lambda k, iy, ix: float(q[k]))
-    wel = {k: [[(L, ny - 1 - iy, ix), -qc(k, iy, ix) * f] for iy, ix in ag for L, f in ((2, 0.6), (3, 0.4))
+    fu = float(np.clip(p.get("pfrac_up", 0.6), 0.05, 0.95))
+    wel = {k: [[(L, ny - 1 - iy, ix), -qc(k, iy, ix) * f] for iy, ix in ag for L, f in ((2, fu), (3, 1 - fu))
                if qc(k, iy, ix) > 0] for k in range(len(days))}
     if plan:
         for j, k in enumerate(plan_k):
@@ -550,6 +579,10 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
     wel = {k: (v if v else [[(2, ny - 1 - int(ag[0][0]), int(ag[0][1])), 0.0]]) for k, v in wel.items()}
     flopy.mf6.ModflowGwfwel(gwf, stress_period_data=wel)
     mult = 10 ** np.array([p[f"log10_mSk_z{i}"] for i in range(SK_ZONES ** 2)])[zone_index(site)]
+    if "aq" in FEAT:                                               # 수로 띠(AQ_CORR_KM 안) 추가 배수: 3×3 구역으로는 수로를 따라 좁게 몰린 침하를 못 담는다
+        corr = site["aq_dist"] <= AQ_CORR_KM
+        south = (np.arange(site["ny"]) < site["ny"] // 2)[:, None]
+        mult = mult * np.where(corr & south, 10 ** p["log10_mSk_aq_s"], np.where(corr, 10 ** p["log10_mSk_aq_n"], 1.0))
     pdata, n = [], 0
     for L, g in enumerate(G):
         fine = cv[f"{g}_fine"]
@@ -559,11 +592,16 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
                 if not active[iy, ix] or fine[iy, ix] < 0.5:
                     continue
                 m = float(mult[iy, ix])
-                if V3 and USE_DELAY != "0" and not (USE_DELAY == "2" and g == "G2"):   # 지연 압밀: 두꺼운 점토는 수위가 내려간 뒤에도 몇 년에 걸쳐 눌린다
+                em = 10 ** p.get("log10_emult", 0.0)
+                corc_delay = (USE_DELAY == "1") or ("corc" in FEAT)
+                if V3 and USE_DELAY != "0" and not (g == "G2" and not corc_delay):   # 지연 압밀: 두꺼운 점토는 수위가 내려간 뒤에도 몇 년에 걸쳐 눌린다
                     b = float(fine[iy, ix]) if g == "G2" else min(float(fine[iy, ix]), DELAY_BEQ)
-                    kvdb = 10 ** p["log10_Kvdb_s" if iy < ny // 2 else "log10_Kvdb"]
+                    if "kv9" in FEAT:
+                        kvdb = 10 ** p[f"log10_Kvdb_z{int(zone_index(site)[iy, ix])}"]
+                    else:
+                        kvdb = 10 ** p["log10_Kvdb_s" if iy < ny // 2 else "log10_Kvdb"]
                     pdata.append([n, (L, ny - 1 - iy, ix), "delay", 0.0, b, max(float(fine[iy, ix]) / b, 1.0),
-                                  float(ssv) * m, float(sse) * m, 0.3, kvdb, 0.0]); n += 1
+                                  float(ssv) * m, float(sse) * m * em, 0.3, kvdb, 0.0]); n += 1
                     continue
                 pdata.append([n, (L, ny - 1 - iy, ix), "nodelay", 0.0, float(fine[iy, ix]), 1.0,
                               float(ssv) * m, float(sse) * m, 0.3, 999.0, 0.0]); n += 1
@@ -592,7 +630,9 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
     return S, H
 
 
+AQ_CORR_KM = float(os.environ.get("AQ_CORR_KM", 2.0))   # v4-aq: 수로 띠 폭(km)
 USE_DELAY = os.environ.get("AQ_DELAY", "2")   # 2(기본): 대수층 안 점토층만 지연 압밀, 코코란 점토는 비지연(지연으로 두면 수렴 실패). 0: 모두 비지연
+NSTP_MONTH = int(os.environ.get("AQ_NSTP_M", "2" if "corc" in FEAT else "1"))   # 월 기간 시간 단계 수(코코란 지연 압밀은 2)
 NSTP_SPIN = int(os.environ.get("AQ_NSTP", "6"))                # spin-up 반년 기간은 6단계로 나눠 푼다(지연 압밀 수렴)
 
 
@@ -666,7 +706,10 @@ def obs_index(site, period, use_insar=True, use_gps=None, cal_end=None, val_end=
         ks = ks[ks <= list(months).index(pd.Period(val_end, "M"))]
     ins = []
     if use_insar:
-        kk = ks[::OBS_EVERY] if period == "cal" else ks
+        ks_ins = ks
+        if INSAR == "opera" and OPS and period == "cal" and cal_end is None:
+            ks_ins = np.arange(1, len(months))                     # 운영 모델 + OPERA: 2023년 이후 위성도 보정에 쓴다
+        kk = ks_ins[::OBS_EVERY] if period == "cal" else ks_ins
         cells = site["cells"]
         u = np.where(site["use"])[0]
         D = site["disp"][u][:, kk]                                   # (셀, 시점)

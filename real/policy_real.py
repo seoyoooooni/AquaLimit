@@ -30,7 +30,7 @@ from scipy.optimize import linprog
 import real_model as r
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / (f"results_policy_{r.VARIANT}" if r.PUMPING == "et" else "results_policy_uniform")
+OUT = HERE / (f"results_policy_{r.TAG}" if r.PUMPING == "et" else "results_policy_uniform")
 OUT.mkdir(exist_ok=True)
 
 SERVICE_KM = 10.0          # 관리 대상: 수로 동쪽 10km 안 농경지

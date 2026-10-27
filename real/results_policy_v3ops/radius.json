@@ -1,0 +1,534 @@
+{
+ "retro": {
+  "name": "2021.4~2022.9 대가뭄 재현",
+  "reg_mm": 19.05,
+  "months": 18,
+  "rows": [
+   {
+    "policy": "금지 4km(실제)",
+    "radius_km": 4.02,
+    "cost": 70003493.67636408,
+    "replace_m3": 75096728.71795599,
+    "banned_share": 0.36242556400516457,
+    "ok_points": 1.0,
+    "ok_all_prob": 0.7666666666666667,
+    "worst_med": 16.666852448363755,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5km",
+    "radius_km": 5.0,
+    "cost": 95255539.42633682,
+    "replace_m3": 109010150.51050644,
+    "banned_share": 0.5260956895930888,
+    "ok_points": 1.0,
+    "ok_all_prob": 0.9666666666666667,
+    "worst_med": 6.882023272959568,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 6km",
+    "radius_km": 6.0,
+    "cost": 117722731.31295785,
+    "replace_m3": 139111810.35136026,
+    "banned_share": 0.671369807807835,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 0.600546910672648,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 7km",
+    "radius_km": 7.0,
+    "cost": 137689643.4772706,
+    "replace_m3": 166074947.3752117,
+    "banned_share": 0.8014970491677016,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.21293682594422636,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 8km",
+    "radius_km": 8.0,
+    "cost": 144965444.0165473,
+    "replace_m3": 175822605.18606174,
+    "banned_share": 0.8485403816821574,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.2891095228734082,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 10km",
+    "radius_km": 10.0,
+    "cost": 167836809.2728623,
+    "replace_m3": 207205937.37390405,
+    "banned_share": 1.0,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.4415631245762469,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5.6km(기준 맞추는 최소 반경)",
+    "radius_km": 5.6,
+    "cost": 112347062.55003144,
+    "replace_m3": 131896063.52997251,
+    "banned_share": 0.6365457727785351,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 1.9872245374697535,
+    "min_radius": true
+   },
+   {
+    "policy": "AquaLimit 규제 기준",
+    "radius_km": NaN,
+    "cost": 97346704.44597961,
+    "replace_m3": 112370644.49708435,
+    "banned_share": 0.5423138251792032,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 7.395925403978925,
+    "min_radius": NaN
+   }
+  ],
+  "min_ban_meeting_reg": {
+   "policy": "금지 5.6km(기준 맞추는 최소 반경)",
+   "radius_km": 5.6,
+   "cost": 112347062.55003144,
+   "replace_m3": 131896063.52997251,
+   "banned_share": 0.6365457727785351,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 1.9872245374697535,
+   "min_radius": true,
+   "x": NaN
+  },
+  "aqualimit": {
+   "policy": "AquaLimit 규제 기준",
+   "radius_km": NaN,
+   "cost": 97346704.44597961,
+   "replace_m3": 112370644.49708435,
+   "banned_share": 0.5423138251792032,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 7.395925403978925,
+   "min_radius": NaN,
+   "x": [
+    0.0,
+    17364.733634374978,
+    0.0,
+    12869.621364384755,
+    14347.360596269542,
+    34811.4744277572,
+    43608.0,
+    12698.033421824844,
+    19553.80445512235,
+    0.0,
+    17443.2,
+    0.0
+   ]
+  },
+  "saving_vs_ban": 15000358.104051828
+ },
+ "습한 해": {
+  "name": "2026.5~7 습한 해",
+  "reg_mm": 3.1749999999999994,
+  "months": 3,
+  "rows": [
+   {
+    "policy": "금지 4km(실제)",
+    "radius_km": 4.02,
+    "cost": 19754219.871423572,
+    "replace_m3": 21507201.56264926,
+    "banned_share": 0.39037244359437595,
+    "ok_points": 1.0,
+    "ok_all_prob": 0.6666666666666666,
+    "worst_med": 2.987198050724202,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5km",
+    "radius_km": 5.0,
+    "cost": 26225996.68701337,
+    "replace_m3": 30198892.56236789,
+    "banned_share": 0.5481333984375153,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.22878665286051536,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 6km",
+    "radius_km": 6.0,
+    "cost": 32112323.92098062,
+    "replace_m3": 38085098.086598754,
+    "banned_share": 0.6912741651343728,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.7878758957994675,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 7km",
+    "radius_km": 7.0,
+    "cost": 37309135.66972008,
+    "replace_m3": 45098925.320472166,
+    "banned_share": 0.8185805870442756,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.9318352081063443,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 8km",
+    "radius_km": 8.0,
+    "cost": 39173225.96124805,
+    "replace_m3": 47596315.70277486,
+    "banned_share": 0.8639101657581186,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -1.0414121104186782,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 10km",
+    "radius_km": 10.0,
+    "cost": 44626185.97087082,
+    "replace_m3": 55094056.75416151,
+    "banned_share": 1.0,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -1.1979518315324202,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 4.7km(기준 맞추는 최소 반경)",
+    "radius_km": 4.7,
+    "cost": 25314238.697230592,
+    "replace_m3": 28978451.948371936,
+    "banned_share": 0.5259814516414797,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 0.16030559582488202,
+    "min_radius": true
+   },
+   {
+    "policy": "AquaLimit 규제 기준",
+    "radius_km": NaN,
+    "cost": 22042550.71348137,
+    "replace_m3": 24565691.76984139,
+    "banned_share": 0.44588642073422613,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 1.3927211466894072,
+    "min_radius": NaN
+   }
+  ],
+  "min_ban_meeting_reg": {
+   "policy": "금지 4.7km(기준 맞추는 최소 반경)",
+   "radius_km": 4.7,
+   "cost": 25314238.697230592,
+   "replace_m3": 28978451.948371936,
+   "banned_share": 0.5259814516414797,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 0.16030559582488202,
+   "min_radius": true,
+   "x": NaN
+  },
+  "aqualimit": {
+   "policy": "AquaLimit 규제 기준",
+   "radius_km": NaN,
+   "cost": 22042550.71348137,
+   "replace_m3": 24565691.76984139,
+   "banned_share": 0.44588642073422613,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 1.3927211466894072,
+   "min_radius": NaN,
+   "x": [
+    0.0,
+    28498.5663233036,
+    7311.710319926794,
+    0.0,
+    70196.04775094548,
+    54287.83998635702,
+    16143.684751243984,
+    52329.6,
+    23623.5187315177,
+    0.0,
+    21951.430382078932,
+    57467.759481300505
+   ]
+  },
+  "saving_vs_ban": 3271687.983749222
+ },
+ "평년": {
+  "name": "2026.5~7 평년",
+  "reg_mm": 3.1749999999999994,
+  "months": 3,
+  "rows": [
+   {
+    "policy": "금지 4km(실제)",
+    "radius_km": 4.02,
+    "cost": 23201468.03146779,
+    "replace_m3": 25196465.985951908,
+    "banned_share": 0.3856517151723662,
+    "ok_points": 0.6052631578947368,
+    "ok_all_prob": 0.3333333333333333,
+    "worst_med": 5.184331875736746,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5km",
+    "radius_km": 5.0,
+    "cost": 30754106.732877664,
+    "replace_m3": 35339581.81416742,
+    "banned_share": 0.540900074943305,
+    "ok_points": 1.0,
+    "ok_all_prob": 0.8666666666666667,
+    "worst_med": 1.211889626366716,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 6km",
+    "radius_km": 6.0,
+    "cost": 37817065.40473204,
+    "replace_m3": 44802127.26663451,
+    "banned_share": 0.6857317702165635,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.6107900586083552,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 7km",
+    "radius_km": 7.0,
+    "cost": 43986408.55351937,
+    "replace_m3": 53130973.43253591,
+    "banned_share": 0.8132113068737084,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.8305686147228712,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 8km",
+    "radius_km": 8.0,
+    "cost": 46274824.56423708,
+    "replace_m3": 56196848.600626275,
+    "banned_share": 0.8601369359574708,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.9525074314071604,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 10km",
+    "radius_km": 10.0,
+    "cost": 52921163.437583126,
+    "replace_m3": 65334769.67602855,
+    "banned_share": 1.0,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -1.1067911397152592,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5.3km(기준 맞추는 최소 반경)",
+    "radius_km": 5.3,
+    "cost": 32721001.727996223,
+    "replace_m3": 37970632.83681356,
+    "banned_share": 0.5811703787293683,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 0.22353081866623903,
+    "min_radius": true
+   },
+   {
+    "policy": "AquaLimit 규제 기준",
+    "radius_km": NaN,
+    "cost": 30157097.388536137,
+    "replace_m3": 34576539.82545257,
+    "banned_share": 0.5292211175902986,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 1.3498950252336694,
+    "min_radius": NaN
+   }
+  ],
+  "min_ban_meeting_reg": {
+   "policy": "금지 5.3km(기준 맞추는 최소 반경)",
+   "radius_km": 5.3,
+   "cost": 32721001.727996223,
+   "replace_m3": 37970632.83681356,
+   "banned_share": 0.5811703787293683,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 0.22353081866623903,
+   "min_radius": true,
+   "x": NaN
+  },
+  "aqualimit": {
+   "policy": "AquaLimit 규제 기준",
+   "radius_km": NaN,
+   "cost": 30157097.388536137,
+   "replace_m3": 34576539.82545257,
+   "banned_share": 0.5292211175902986,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 1.3498950252336694,
+   "min_radius": NaN,
+   "x": [
+    0.0,
+    34409.06100653519,
+    0.0,
+    0.0,
+    57063.753897826246,
+    66645.26506069054,
+    43608.0,
+    29797.7940426029,
+    28969.967975080694,
+    0.0,
+    26543.850979733263,
+    47269.848734685205
+   ]
+  },
+  "saving_vs_ban": 2563904.339460086
+ },
+ "가뭄·폭염": {
+  "name": "2026.5~7 가뭄·폭염",
+  "reg_mm": 3.1749999999999994,
+  "months": 3,
+  "rows": [
+   {
+    "policy": "금지 4km(실제)",
+    "radius_km": 4.02,
+    "cost": 27921667.117511623,
+    "replace_m3": 30245373.82966359,
+    "banned_share": 0.3810044968999108,
+    "ok_points": 0.4473684210526316,
+    "ok_all_prob": 0.13333333333333333,
+    "worst_med": 10.723386038064746,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5km",
+    "radius_km": 5.0,
+    "cost": 36952107.12688769,
+    "replace_m3": 42372931.6708313,
+    "banned_share": 0.5337767555574282,
+    "ok_points": 0.8421052631578947,
+    "ok_all_prob": 0.4666666666666667,
+    "worst_med": 3.8453593636425154,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 6km",
+    "radius_km": 6.0,
+    "cost": 45632477.10682255,
+    "replace_m3": 54002330.395287514,
+    "banned_share": 0.6802736457996734,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 0.49688996352773884,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 7km",
+    "radius_km": 7.0,
+    "cost": 53136183.61949278,
+    "replace_m3": 64135548.59293978,
+    "banned_share": 0.8079229756812233,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -0.8442540565686776,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 8km",
+    "radius_km": 8.0,
+    "cost": 56009834.42090437,
+    "replace_m3": 67985484.35311112,
+    "banned_share": 0.856421064865442,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -1.101108586625408,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 10km",
+    "radius_km": 10.0,
+    "cost": 64300429.526067466,
+    "replace_m3": 79383246.32847835,
+    "banned_share": 1.0,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": -1.2949156728670874,
+    "min_radius": NaN
+   },
+   {
+    "policy": "금지 5.9km(기준 맞추는 최소 반경)",
+    "radius_km": 5.9,
+    "cost": 45632477.10682255,
+    "replace_m3": 54002330.395287514,
+    "banned_share": 0.6802736457996734,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 0.49688996352773884,
+    "min_radius": true
+   },
+   {
+    "policy": "AquaLimit 규제 기준",
+    "radius_km": NaN,
+    "cost": 42482022.52026262,
+    "replace_m3": 50013235.51281973,
+    "banned_share": 0.6300225529436143,
+    "ok_points": 1.0,
+    "ok_all_prob": 1.0,
+    "worst_med": 1.2702414596447937,
+    "min_radius": NaN
+   }
+  ],
+  "min_ban_meeting_reg": {
+   "policy": "금지 6km",
+   "radius_km": 6.0,
+   "cost": 45632477.10682255,
+   "replace_m3": 54002330.395287514,
+   "banned_share": 0.6802736457996734,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 0.49688996352773884,
+   "min_radius": NaN,
+   "x": NaN
+  },
+  "aqualimit": {
+   "policy": "AquaLimit 규제 기준",
+   "radius_km": NaN,
+   "cost": 42482022.52026262,
+   "replace_m3": 50013235.51281973,
+   "banned_share": 0.6300225529436143,
+   "ok_points": 1.0,
+   "ok_all_prob": 1.0,
+   "worst_med": 1.2702414596447937,
+   "min_radius": NaN,
+   "x": [
+    0.0,
+    37062.023573640196,
+    0.0,
+    0.0,
+    51597.461264283076,
+    83688.53577299754,
+    50622.22695651104,
+    26214.37414553803,
+    36342.58942304503,
+    0.0,
+    32863.57454880143,
+    826.6446717589569
+   ]
+  },
+  "saving_vs_ban": 3150454.586559929
+ }
+}

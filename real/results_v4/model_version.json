@@ -1,0 +1,29 @@
+{
+ "structure": "cvhm2",
+ "pumping": "et",
+ "et_source": "landsat",
+ "variant": "v4",
+ "param_names": [
+  "log10_mSk_z0",
+  "log10_mSk_z1",
+  "log10_mSk_z2",
+  "log10_mSk_z3",
+  "log10_mSk_z4",
+  "log10_mSk_z5",
+  "log10_mSk_z6",
+  "log10_mSk_z7",
+  "log10_mSk_z8",
+  "log10_Kc",
+  "log10_Kf",
+  "log10_Kcorc",
+  "log10_pump",
+  "dry_beta",
+  "log10_pmult",
+  "log10_sw",
+  "log10_rch",
+  "log10_rf",
+  "log10_Kvdb",
+  "log10_Kvdb_s",
+  "log10_spin"
+ ]
+}
