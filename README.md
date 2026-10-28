@@ -21,7 +21,7 @@
 | [9/30 발표](docs/progress/0930/README.md) | 서비스 설명 발표 원고 |
 | [10/7 발표](docs/progress/1007/README.md) | 합성 대수층 검증 결과 발표 원고 |
 | [10/13 발표](docs/progress/1013/README.md) | 실제 지역 첫 결과(CVHM2 모델, GPS 검증, 계획, AI) |
-| [10/28 발표](docs/progress/1028/README.md) | 모델 v3, 실제 우물·규제값 정책 비교, 금지 반경 비교, NASA OPERA 위성 점검 |
+| [10/28 발표](docs/progress/1028/AquaLimit_10_28_v3.pptx) | 모델 v3, 실제 우물·규제값 정책 비교, 금지 반경 비교, NASA OPERA 위성 점검 |
 | [가상 데이터 데모](demo/README.md) | 불확실성 반영 취수 계획 데모 실행 방법 |
 | [실제 검증 지역](real/README.md) | Aqueduct MP 195~215 실제 자료 → MODFLOW(CVHM2) 역산·GPS 검증, 정책 비교, 취수 계획, 위치 입력 AI, 최종 데모 |
 | [채점표](real/SCOREBOARD.md) | 모델 구조 후보별 연습 시험·최종 시험 점수 |
