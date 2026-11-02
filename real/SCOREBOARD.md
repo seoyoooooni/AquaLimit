@@ -26,5 +26,7 @@
 | results_v4-oil-hw | v4-oil-hw | 23 |  |  |  | 15.7 | 10.4 | 9.2 | 30.1 | 32.3 | 27.2 | 25.2 | mSk_z0, Kf, rch, rf |  |
 | results_v4-oil-opera | v4-oil-opera | 23 |  |  |  | 15.2 | 10.4 | 6.1 | 29.9 | 29.6 | 27.2 | 22.1 | mSk_z0, mSk_z3, mSk_z6, Kf, rch, rf |  |
 | results_v4-oil-pp | v4-oil-pp | 47 |  |  |  | 16.6 | 10.4 | 11.7 | 23.6 | 33.7 | 27.2 | 27.4 | mSk_p0, mSk_p1, mSk_p4, mSk_p6, mSk_p9, mSk_p12, mSk_p13, mSk_p16, mSk_p32, Kf, rch, rf |  |
+| results_v4-oil-pp-opera | v4-oil-pp-opera | 47 |  |  |  | 15.8 | 10.4 | 9.8 | 24.6 | 31.8 | 27.2 | 25.4 | mSk_p0, mSk_p1, mSk_p4, mSk_p5, mSk_p6, mSk_p8, mSk_p9, mSk_p12, mSk_p13, mSk_p16, mSk_p23, mSk_p32, Kf, rch, rf |  |
 | results_v4-pfrac | v4-pfrac | 22 |  |  |  | 15.5 | 10.4 | 6.4 | 29.4 | 29.5 | 27.2 | 22.3 | mSk_z0, Kf, rch, rf |  |
 | results_v4-pp | v4-pp | 45 |  |  |  | 15.9 | 10.4 | 10.9 | 23.0 | 32.9 | 27.2 | 26.3 | mSk_p0, mSk_p1, mSk_p4, mSk_p9, mSk_p10, mSk_p16, mSk_p21, mSk_p23, mSk_p32, Kf, rch, rf |  |
+| results_v4-pp-opera | v4-pp-opera | 45 |  |  |  | 15.1 | 10.4 | 9.0 | 25.3 | 30.9 | 27.2 | 24.3 | mSk_p0, mSk_p1, mSk_p4, mSk_p5, mSk_p7, mSk_p8, mSk_p9, mSk_p10, mSk_p12, mSk_p16, mSk_p21, mSk_p22, mSk_p23, mSk_p32, Kf, rch, rf |  |
