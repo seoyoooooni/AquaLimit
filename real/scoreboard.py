@@ -79,6 +79,9 @@ def collect():
         if dev:
             row.update({"연습(DWR, 10/22까지): 수로 RMSE": dev["near"]["model_rmse"], "연습(DWR): 추세 연장": dev["near"]["trend_rmse"],
                         "연습(DWR): 편향": dev["near"]["model_bias"], "범위 끝 파라미터": ", ".join(dev.get("at_bound", []))})
+        if rs:                                     # 11/2: DWR 정답 열은 rescore 값으로(OPERA로 보정한 변형은 results_dev.json이 OPERA 정답)
+            row.update({"연습(DWR, 10/22까지): 수로 RMSE": rs["dwr"]["near"]["model"], "연습(DWR): 추세 연장": rs["dwr"]["near"]["trend"],
+                        "연습(DWR): 편향": rs["dwr"]["near"]["bias_model"]})
         res = json.load(open(d / "results.json")) if (d / "results.json").exists() else None
         e3o = json.load(open(d / "results_e3only.json")) if (d / "results_e3only.json").exists() else None
         src = res or e3o
