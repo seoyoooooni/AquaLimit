@@ -103,7 +103,10 @@ def collect():
          "같은 연습 시험에서 '추세 연장'(2015~2019 위성 추세를 그대로 늘림)보다 작아야 물리모델이 데이터 추세보다 낫다고 말할 수 있다.\n",
          "**10/23 연습 시험 정답 변경: DWR InSAR → NASA OPERA.** 연습 기간(2020~22) GPS가 있는 유일한 곳 P544에서 GPS 27.8mm, OPERA 24.9mm, DWR 13.6mm 침하 — "
          "DWR가 절반만 잡는다(2023년 이후 GPS와 반대로 가는 문제가 2020년 무렵부터 시작). 같은 보정 결과(H2019)를 다시 채점만 했다(rescore_practice.py, RESCORE_PRACTICE.md). "
-         "DWR 정답 열은 기록으로 남긴다. 'GPS P544' = 연습 기간 P544 GPS 월 값 36개 RMSE(추세 연장 4.1mm, 변화 0 12.5mm).\n"]
+         "DWR 정답 열은 기록으로 남긴다. 'GPS P544' = 연습 기간 P544 GPS 월 값 36개 RMSE(추세 연장 4.1mm, 변화 0 12.5mm).\n",
+         "**10/28~11/2 후보 11개(유전 성분 oil, 수위 가중치 hw, 파일럿 포인트 pp, 수로물 안·밖 sw2, OPERA로 보정 -opera) 모두 v3보다 나빠 v3 확정.** "
+         "칸별 분포 오차는 파일럿 포인트로 줄었지만(편향 뺀 나머지 13.9 → 11.7mm) 수로 근처 가뭄 반응을 크게 잡아 편향이 +8~+12mm로 커졌다. "
+         "자세한 내용과 다음 단계: [MODEL_TRIALS.md](MODEL_TRIALS.md). '-opera' 변형의 '연습(DWR)' 열은 rescore의 DWR 정답 값이다.\n"]
     if len(df):                                   # tabulate 없이 마크다운 표
         fmt = lambda x: "" if x is None or (isinstance(x, float) and np.isnan(x)) else (f"{x:.1f}" if isinstance(x, float) else str(x))
         L.append("| " + " | ".join(df.columns) + " |"); L.append("|" + "---|" * len(df.columns))

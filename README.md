@@ -22,8 +22,10 @@
 | [10/7 발표](docs/progress/1007/README.md) | 합성 대수층 검증 결과 발표 원고 |
 | [10/13 발표](docs/progress/1013/README.md) | 실제 지역 첫 결과(CVHM2 모델, GPS 검증, 계획, AI) |
 | [10/28 발표](docs/progress/1028/AquaLimit_10_28_v3.pptx) | 모델 v3, 실제 우물·규제값 정책 비교, 금지 반경 비교, NASA OPERA 위성 점검 |
+| [11/2 정리](docs/progress/1102/README.md) | 모델 개선 시도 11개 결과(v3 확정), 발표 수정 사항(2·13·14장 + 새 장), 데모 대본 수정, 예상 질문 |
 | [가상 데이터 데모](demo/README.md) | 불확실성 반영 취수 계획 데모 실행 방법 |
 | [실제 검증 지역](real/README.md) | Aqueduct MP 195~215 실제 자료 → MODFLOW(CVHM2) 역산·GPS 검증, 정책 비교, 취수 계획, 위치 입력 AI, 최종 데모 |
 | [채점표](real/SCOREBOARD.md) | 모델 구조 후보별 연습 시험·최종 시험 점수 |
-| [OPERA 위성 점검](real/results_opera/RESULTS.md) | DWR vs NASA OPERA vs GPS, 금지 전후 위성 이중차분, 현장 확인 후보 |
+| [모델 개선 시도](real/MODEL_TRIALS.md) | 10/28~11/2 후보 11개(유전 침하 성분·파일럿 포인트·수로물 안·밖·OPERA 보정) 모두 탈락 → v3 확정, 남은 오차의 원인과 다음 단계 |
+| [OPERA 위성 점검](real/results_opera/RESULTS.md) | DWR vs NASA OPERA vs GPS, 금지 전후 위성 이중차분, 현장 확인 후보. [추가 점검(11/2)](real/results_opera/RESULTS_checks.md): 이중차분 위약 검사·유전 영향 |
 | [합성 대수층 검증](synthetic/README.md) | 역산 복원·E1~E4 비교 실험(R2 관문), [결과](synthetic/results/RESULTS.md), [MODFLOW 6 참값 결과](synthetic/results_mf6/RESULTS.md) |

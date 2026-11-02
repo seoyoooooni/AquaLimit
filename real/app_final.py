@@ -132,15 +132,20 @@ with t1:
                 # 금지 준수 시 침하가 0 근처라 비율(%)로 나누면 값이 폭주한다 → mm/년으로 보여 준다
                 st.info(f"AquaLimit 원인 분석(운영 모델, 금지 후 수로 침하 mm/년 중앙값): 추정 실제 **{dec['asis']['med']:.1f}** = "
                         f"과거 취수 영향 {dec['legacy']['med']:+.1f} + 금지구역 밖 취수 {dec['outside']['med']:+.1f} + "
-                        f"**금지구역 안에서 계속된 취수 {dec['inside_if_continued']['med']:+.1f}**. 금지가 완전히 지켜졌다면 **{dec['ban']['med']:.1f}**.")
+                        f"**금지구역 안에서 계속된 취수 {dec['inside_if_continued']['med']:+.1f}**. 금지가 완전히 지켜졌다면 **{dec['ban']['med']:.1f}**. "
+                        "모델에 없는 유전 생산 침하(수로 남쪽 GPS 4곳이 유전 2.5km 안)가 '금지구역 안 취수'에 섞여 있을 수 있다.")
     op = jload(HERE / "results_opera" / "results.json")
     if op and (HERE / "results_opera" / "opera-2-ban-map.png").exists():
         st.markdown("#### NASA 위성으로 본 금지 전후 (모델 없음)")
         st.image(str(HERE / "results_opera" / "opera-2-ban-map.png"), width="stretch")
         d_ = op["did"]
-        st.info(f"금지 전 1년 → 후 1년 침하 속도 변화: 금지구역 안 **{d_['in_change_med']:+.1f}**, 밖 **{d_['out_change_med']:+.1f}**mm/년. "
-                f"금지가 지켜졌다면 안쪽이 더 좋아졌어야 하는데, 오히려 **{d_['did_med']:+.1f}mm/년 덜 좋아졌다**"
-                f"(90% 범위 {d_['p5']:+.1f}~{d_['p95']:+.1f}). 초록 원 = 현장 확인 후보(금지 후 가장 빨리 꺼지는 칸).")
+        ck = (jload(HERE / "results_opera" / "checks.json") or {}).get("placebo")   # opera_checks.py(11/2): 이중차분 위약 검사
+        msg = (f"금지 전 1년 → 후 1년 침하 속도 변화: 금지구역 안 **{d_['in_change_med']:+.1f}**, 밖 **{d_['out_change_med']:+.1f}**mm/년. "
+               f"금지가 지켜졌다면 안쪽이 더 좋아졌어야 하는데 **더 좋아지지 않았다**(안 − 밖 {d_['did_med']:+.1f}, 90% 범위 {d_['p5']:+.1f}~{d_['p95']:+.1f}). ")
+        if ck:
+            msg += (f"단, 금지가 없던 해에도 안 − 밖은 수로 배분율 변화를 따라 움직여, 이번(배분율 40 → 50%)엔 금지 없이도 약 {ck['expected_ban_pair']:+.1f}가 예상된다"
+                    f"(남는 몫 {ck['excess']:+.1f}, 해마다 흔들림 {ck['resid_sd']:.1f}). → **위성으로는 금지 효과가 보이지 않는다**까지만 말한다. ")
+        st.info(msg + "초록 원 = 현장 확인 후보(금지 후 가장 빨리 꺼지는 칸). 확정은 유량계로.")
 
 with t2:
     o = jload(POL / "results.json") or {}
