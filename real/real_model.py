@@ -87,7 +87,12 @@ V3 = VARIANT.startswith(("v3", "v4"))
 #   corc : 코코란 점토도 지연 압밀   pfrac: 취수의 깊은/얕은 층 비율을 보정값으로
 #   emult: 탄성 압축 크기 배수를 보정값으로   kv9: 지연 압밀 투수계수를 3×3 구역별로
 #   aq   : 수로 2km 안 띠의 압축 계수 배수(북·남 2개) — 10/23 추가, 3년 예측 개선 후보
+#   oil  : Lost Hills 유전 생산 침하가 유전 경계 밖으로 번진 몫(지하수와 무관한 일정 속도, 유전에서 멀어질수록 지수로 줄어듦) — 10/28 추가
+#          근거(OPERA, 수로 동쪽 2km 안): 유전 1km 안 칸은 습한 해 2023에도 연 23mm, 3~6km는 4mm. GPS Q198·Q204·Q208·Q213이 유전 0.2~2.3km
+#   hw   : 보정에서 관측정 수위 가중치 키우기(σ 0.5m → AQ_SIG_HEAD, 기본 0.2m). v3 보정 목적함수에서 수위 몫은 2.5%뿐이었다
 FEAT = set(VARIANT.split("-")[1:]) - {"ops"} if VARIANT.startswith("v4") else set()
+SIG_HEAD_CAL = float(os.environ.get("AQ_SIG_HEAD", 0.2)) if "hw" in FEAT else SIG_HEAD   # hw: 보정 때만 쓰는 수위 σ(m)
+OIL_FIELDS = [x.strip() for x in os.environ.get("AQ_OIL_FIELDS", "Lost Hills").split(";") if x.strip()]   # oil: 침하를 내는 유전(;로 구분)
 # 위성 침하 자료: dwr(DWR TRE Altamira, 기본) 또는 opera(NASA OPERA DISP-S1, prepare_opera.py --build로 만든 것).
 #   DWR는 2023년 이후 GPS와 어긋나 2022년까지만 쓴다. OPERA는 2026.2까지 GPS와 같은 방향이라 운영 모델(v3ops)에서 2023년 이후도 보정에 쓴다.
 #   결과 폴더 이름에 '-opera'가 붙는다(예: results_v3ops-opera/). 실행: AQ_INSAR=opera AQ_VARIANT=v3ops python3 run_real.py
@@ -122,6 +127,8 @@ if V3:
         PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_emult", 0.0, 0.3)]      # 탄성 압축 계수 배수
     if "aq" in FEAT:                           # 수로 2km 안 띠의 압축 계수 배수(북·남). 위성: 수로 2km 안 침하가 2~4km보다 2배 크다(2022.12 누적 84 vs 39mm)
         PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_mSk_aq_n", 0.0, 0.5), ("log10_mSk_aq_s", 0.0, 0.5)]
+    if "oil" in FEAT:                          # 유전 침하 성분: 유전 경계에서의 속도(mm/년, 3σ 0.6~160), 줄어드는 거리(km, 3σ 0.25~16)
+        PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_oil_v", 1.0, 0.4), ("log10_oil_L", np.log10(2.0), 0.3)]
     if VARIANT.endswith("ops"):
         # 운영 모델: 2024.12 취수 금지 이후 실제 취수가 위성 추정과 얼마나 달랐는지 GPS로 거꾸로 추정한다(계량 기록 비공개)
         PARAMS_CVHM2 = PARAMS_CVHM2 + [
@@ -250,7 +257,13 @@ def load_site():
     aq_dist = np.array([np.min(np.hypot((pts[:, 0] - a) * KM_LON, (pts[:, 1] - b) * KM_LAT))
                         for a, b in zip(lon_c.ravel(), lat_c.ravel())]).reshape(lat_c.shape)
 
-    return dict(cells=cells, disp=disp, months=months, nx=nx, ny=ny, use=use.to_numpy(), hobs=hobs,
+    # v4-oil: 모델 칸(1km) 중심에서 유전(OIL_FIELDS) 500m 칸 중심까지 최소 거리(km)
+    oc = cells[cells.oil_field.fillna("").astype(str).isin(OIL_FIELDS)]
+    d_oil = np.full(lat_c.shape, 99.0) if oc.empty else np.array(
+        [np.min(np.hypot((oc.lon.to_numpy() - a) * KM_LON, (oc.lat.to_numpy() - b) * KM_LAT))
+         for a, b in zip(lon_c.ravel(), lat_c.ravel())]).reshape(lat_c.shape)
+
+    return dict(cells=cells, disp=disp, months=months, nx=nx, ny=ny, use=use.to_numpy(), hobs=hobs, d_oil=d_oil,
                 ag=ag, aq_dist=aq_dist, buf=ag & (aq_dist <= BUFFER_KM), precip=load_precip(months), gps=load_gps(months), aq_pts=pts, lat_c=lat_c, lon_c=lon_c, cv=cv,
                 **load_et(months, lat_c, lon_c))
 
@@ -443,12 +456,26 @@ def base_uniform(site, p, months, extra_months=0, future_dry=0.0):
     return np.maximum(q, 0) * MCELL * MCELL
 
 
+def add_oil(site, theta, S):
+    """v4-oil: 유전 생산 침하가 유전 경계 밖으로 번진 몫을 모델 침하(mm, 아래로 +)에 더한다.
+    지하수 취수·날씨와 무관한 일정 속도로 본다: v(칸) = oil_v × exp(−유전까지 거리 / oil_L) mm/년, 침하 = v × 경과 연수.
+    S[j]는 months[j+1] 값(기준 months[0] 대비)이라 경과 연수 = (j+1)/12. 계획 기간을 붙여도 같은 속도로 이어진다.
+    취수를 바꾼 두 계산의 차이(응답)에서는 이 몫이 빠진다 → 정책 응답은 그대로, 기준 초과 판정에는 들어간다."""
+    if "log10_oil_v" not in NAMES:
+        return S
+    p = dict(zip(NAMES, theta))
+    v = 10 ** p["log10_oil_v"] * np.exp(-site["d_oil"] / 10 ** p["log10_oil_L"])
+    t = (np.arange(S.shape[0]) + 1) / 12.0
+    return S + t[:, None, None] * v[None]
+
+
 def run_model(site, theta, ws=None, keep=False, plan=None):
     """MODFLOW 6 실행 → (침하 mm (T,ny,nx), 층별 수위 (T,nlay,ny,nx)). 행은 iy(남→북) 순서.
     plan: {"months": 계획 달 수, "wells": [(iy, ix), ...], "rates": (달, 우물) m3/일, "dry": 미래 가뭄 계수}
           자료 끝 뒤로 계획 기간을 이어 붙이고, 계획 우물 취수를 더한다(하부 대수층 위 60% / 아래 40%)."""
     if STRUCTURE == "cvhm2":
-        return run_model_cvhm2(site, theta, ws, keep, plan)
+        S, H = run_model_cvhm2(site, theta, ws, keep, plan)
+        return add_oil(site, theta, S), H
     if plan is not None:
         raise NotImplementedError("계획 계산은 CVHM2 구조에서만 지원")
     import flopy
@@ -762,7 +789,7 @@ def obs_index(site, period, use_insar=True, use_gps=None, cal_end=None, val_end=
     hh = np.array(hh) if hh else np.zeros((0, 6))
     gp = np.array(gp) if gp else np.zeros((0, 5))
     d = np.concatenate([ins[:, 3] if len(ins) else [], hh[:, 5] if len(hh) else [], gp[:, 4] if len(gp) else []])
-    sd = np.concatenate([np.full(len(ins), SIG_INSAR), np.full(len(hh), SIG_HEAD), np.full(len(gp), sig_gp)])
+    sd = np.concatenate([np.full(len(ins), SIG_INSAR), np.full(len(hh), SIG_HEAD_CAL if period == "cal" else SIG_HEAD), np.full(len(gp), sig_gp)])
     return dict(ins=ins, hh=hh, gp=gp, d=d, sd=sd, n_ins=len(ins), n_hh=len(hh))
 
 

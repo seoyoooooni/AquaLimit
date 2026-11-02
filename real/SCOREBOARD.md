@@ -21,4 +21,7 @@
 | results_v4-corc | v4-corc | 21 |  |  |  | 15.3 | 10.4 | 6.1 | 29.5 | 29.1 | 27.2 | 22.0 | mSk_z0, Kf, rch, rf |  |
 | results_v4-emult | v4-emult | 22 |  |  |  | 15.0 | 10.4 | 5.5 | 27.0 | 28.6 | 27.2 | 21.4 | mSk_z0, Kf, rch, rf, emult |  |
 | results_v4-kv9 | v4-kv9 | 28 |  |  |  | 29.7 | 10.4 | 22.4 | 55.2 | 47.7 | 27.2 | 38.4 | mSk_z0, rch, rf |  |
+| results_v4-oil | v4-oil | 23 |  |  |  | 15.6 | 10.4 | 9.1 | 29.7 | 32.1 | 27.2 | 25.0 | mSk_z0, Kf, rch, rf |  |
+| results_v4-oil-aq | v4-oil-aq | 25 |  |  |  | 22.9 | 10.4 | 17.8 | 28.3 | 41.4 | 27.2 | 33.7 | mSk_z0, Kf, rch, rf |  |
+| results_v4-oil-hw | v4-oil-hw | 23 |  |  |  | 15.7 | 10.4 | 9.2 | 30.1 | 32.3 | 27.2 | 25.2 | mSk_z0, Kf, rch, rf |  |
 | results_v4-pfrac | v4-pfrac | 22 |  |  |  | 15.5 | 10.4 | 6.4 | 29.4 | 29.5 | 27.2 | 22.3 | mSk_z0, Kf, rch, rf |  |
