@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | results_uniform | uniform | 15 | 20.5 | 93.5 | 65.3 |  |  |  |  |  |  |  |  |  |
 | results_v3 | v3 | 21 | 21.2 | 99.2 | 97.4 | 14.0 | 10.4 | 2.0 | 21.0 | 25.1 | 27.2 | 17.9 | mSk_z0, Kf, rch | 1/4 |
-| results_v3-opera | v3-opera | 21 | 21.8 |  |  |  |  |  |  |  |  |  |  |  |
+| results_v3-opera | v3-opera | 21 | 21.8 |  |  | 15.5 | 10.4 | 2.8 | 29.7 | 26.9 | 27.2 | 18.7 | mSk_z0, mSk_z3, mSk_z6, Kf, rch, rf |  |
 | results_v3_noalloc | v3_noalloc | 21 | 24.7 |  |  |  |  |  |  |  |  |  |  |  |
 | results_v3_nolandsat | v3_nolandsat | 21 | 19.2 |  |  |  |  |  |  |  |  |  |  |  |
 | results_v3_noweather | v3_noweather | 21 | 23.5 |  |  |  |  |  |  |  |  |  |  |  |
@@ -24,4 +24,5 @@
 | results_v4-oil | v4-oil | 23 |  |  |  | 15.6 | 10.4 | 9.1 | 29.7 | 32.1 | 27.2 | 25.0 | mSk_z0, Kf, rch, rf |  |
 | results_v4-oil-aq | v4-oil-aq | 25 |  |  |  | 22.9 | 10.4 | 17.8 | 28.3 | 41.4 | 27.2 | 33.7 | mSk_z0, Kf, rch, rf |  |
 | results_v4-oil-hw | v4-oil-hw | 23 |  |  |  | 15.7 | 10.4 | 9.2 | 30.1 | 32.3 | 27.2 | 25.2 | mSk_z0, Kf, rch, rf |  |
+| results_v4-oil-opera | v4-oil-opera | 23 |  |  |  | 15.2 | 10.4 | 6.1 | 29.9 | 29.6 | 27.2 | 22.1 | mSk_z0, mSk_z3, mSk_z6, Kf, rch, rf |  |
 | results_v4-pfrac | v4-pfrac | 22 |  |  |  | 15.5 | 10.4 | 6.4 | 29.4 | 29.5 | 27.2 | 22.3 | mSk_z0, Kf, rch, rf |  |
