@@ -90,9 +90,64 @@ V3 = VARIANT.startswith(("v3", "v4"))
 #   oil  : Lost Hills 유전 생산 침하가 유전 경계 밖으로 번진 몫(지하수와 무관한 일정 속도, 유전에서 멀어질수록 지수로 줄어듦) — 10/28 추가
 #          근거(OPERA, 수로 동쪽 2km 안): 유전 1km 안 칸은 습한 해 2023에도 연 23mm, 3~6km는 4mm. GPS Q198·Q204·Q208·Q213이 유전 0.2~2.3km
 #   hw   : 보정에서 관측정 수위 가중치 키우기(σ 0.5m → AQ_SIG_HEAD, 기본 0.2m). v3 보정 목적함수에서 수위 몫은 2.5%뿐이었다
+#   pp   : 압축 계수 배수를 3×3 구역 대신 파일럿 포인트로(배경 5×5 + 수로 따라 3km 간격), 점끼리 거리 상관 사전분포 — 11/2 추가
+#          근거: 후보 8개 모두 편향을 뺀 나머지 오차가 12.7~15.6mm로 같다 → 남은 오차는 칸별 분포(구역 경계가 지도에 그대로 보임)
 FEAT = set(VARIANT.split("-")[1:]) - {"ops"} if VARIANT.startswith("v4") else set()
 SIG_HEAD_CAL = float(os.environ.get("AQ_SIG_HEAD", 0.2)) if "hw" in FEAT else SIG_HEAD   # hw: 보정 때만 쓰는 수위 σ(m)
 OIL_FIELDS = [x.strip() for x in os.environ.get("AQ_OIL_FIELDS", "Lost Hills").split(";") if x.strip()]   # oil: 침하를 내는 유전(;로 구분)
+PP_LEN = float(os.environ.get("AQ_PP_LEN", 2.0))     # pp: 칸 값 보간 길이(km). 칸 값 = 가까운 점들의 가우스 가중 평균(log10 배수)
+PP_CORR = float(os.environ.get("AQ_PP_CORR", 8.0))   # pp: 사전 상관 거리(km). 상관 = exp(−거리/PP_CORR)
+PP_SD = 0.5                                          # pp: 점마다 사전 표준편차(log10) — 구역 배수와 같음
+
+
+def _pilot_points(bg=5, step_km=3.0, east_km=0.5, min_gap_km=2.5):
+    """파일럿 포인트 위치(km, 모델 격자 남서 모서리 기준)와 격자 크기.
+    배경 bg×bg 격자 + 수로를 따라 step_km 간격(수로에서 동쪽 east_km). 수로 점과 min_gap_km 안의 배경 점은 뺀다."""
+    ny, nx = np.load(DATA / "cvhm2_box.npz")["G1_thk"].shape
+    aq = json.load(open(DATA / "aqueduct_mp185_218.geojson")); pts = []
+    for f in aq["features"]:
+        g = f["geometry"]
+        for part in (g["coordinates"] if g["type"] == "MultiLineString" else [g["coordinates"]]):
+            pts += [c[:2] for c in part]
+    pts = np.array(pts); pts = pts[np.argsort(pts[:, 1])]
+    ax, ay = (pts[:, 0] - LON0) * KM_LON, (pts[:, 1] - LAT0) * KM_LAT
+    W, H = nx * MCELL / 1000, ny * MCELL / 1000
+    m = (ax >= 0) & (ax <= W) & (ay >= 0) & (ay <= H)
+    ax, ay = ax[m], ay[m]
+    s_ = np.r_[0, np.cumsum(np.hypot(np.diff(ax), np.diff(ay)))]
+    ss = np.arange(step_km / 2, s_[-1], step_km)
+    line = np.c_[np.interp(ss, s_, ax) + east_km, np.interp(ss, s_, ay)]
+    gx, gy = np.meshgrid(np.linspace(3, W - 3, bg), np.linspace(3, H - 3, bg))
+    back = np.c_[gx.ravel(), gy.ravel()]
+    dmin = np.min(np.hypot(back[:, None, 0] - line[None, :, 0], back[:, None, 1] - line[None, :, 1]), 1)
+    return np.vstack([back[dmin >= min_gap_km], line]), (ny, nx)
+
+
+PP_XY, PP_GRID = _pilot_points() if "pp" in FEAT else (None, None)
+_PP_W = {}
+
+
+def pp_weights(ny, nx):
+    """(ny*nx, 점 수) 가중치: 칸 중심에서 점까지 가우스 커널(길이 PP_LEN), 칸마다 합 1."""
+    if (ny, nx) not in _PP_W:
+        cx, cy = np.meshgrid((np.arange(nx) + 0.5) * MCELL / 1000, (np.arange(ny) + 0.5) * MCELL / 1000)
+        d2 = (cx.ravel()[:, None] - PP_XY[None, :, 0]) ** 2 + (cy.ravel()[:, None] - PP_XY[None, :, 1]) ** 2
+        w = np.exp(-d2 / (2 * PP_LEN ** 2))
+        _PP_W[(ny, nx)] = w / w.sum(1, keepdims=True)
+    return _PP_W[(ny, nx)]
+
+
+def pp_start_from_zones(m):
+    """역산 시작점: 이전 해(3×3 구역 값 m)에서 각 파일럿 포인트가 속한 구역 값을 가져온다. pp가 아니면 빈 dict."""
+    if PP_XY is None or "log10_mSk_z0" not in m:
+        return {}
+    ny, nx = PP_GRID
+    out = {}
+    for i, (x, y) in enumerate(PP_XY):
+        ix = int(np.clip(x // (MCELL / 1000), 0, nx - 1)); iy = int(np.clip(y // (MCELL / 1000), 0, ny - 1))
+        z = min(iy * SK_ZONES // ny, SK_ZONES - 1) * SK_ZONES + min(ix * SK_ZONES // nx, SK_ZONES - 1)
+        out[f"log10_mSk_p{i}"] = m[f"log10_mSk_z{z}"]
+    return out
 # 위성 침하 자료: dwr(DWR TRE Altamira, 기본) 또는 opera(NASA OPERA DISP-S1, prepare_opera.py --build로 만든 것).
 #   DWR는 2023년 이후 GPS와 어긋나 2022년까지만 쓴다. OPERA는 2026.2까지 GPS와 같은 방향이라 운영 모델(v3ops)에서 2023년 이후도 보정에 쓴다.
 #   결과 폴더 이름에 '-opera'가 붙는다(예: results_v3ops-opera/). 실행: AQ_INSAR=opera AQ_VARIANT=v3ops python3 run_real.py
@@ -135,10 +190,23 @@ if V3:
             ("log10_post_in", 0.0, 0.5),       # 금지구역(수로 양쪽 2.5마일) 안 취수 배수, 2024.12~
             ("log10_post_out", 0.0, 0.5),      # 금지구역 밖 취수 배수, 2024.12~
         ]
+if PP_XY is not None and V3:                   # pp: 3×3 구역 배수 9개를 파일럿 포인트 배수로 바꾼다
+    PARAMS_CVHM2 = [(f"log10_mSk_p{i}", 0.0, PP_SD) for i in range(len(PP_XY))] + \
+                   [q for q in PARAMS_CVHM2 if not q[0].startswith("log10_mSk_z")]
 PARAMS = PARAMS_CVHM2 if STRUCTURE == "cvhm2" else PARAMS_SIMPLE
 NAMES = [p[0] for p in PARAMS]
 PRIOR_MEAN = np.array([p[1] for p in PARAMS])
 PRIOR_SD = np.array([p[2] for p in PARAMS])
+# 사전 정밀도 행렬(사전 공분산의 역행렬). 보통은 대각 = 파라미터끼리 독립(이전 버전과 같은 계산).
+# pp: 파일럿 포인트끼리 거리에 따라 상관 → 이웃 점이 서로 비슷하도록 묶는다(과적합 억제).
+if PP_XY is not None and V3:
+    _C = np.diag(PRIOR_SD ** 2)
+    _ip = [i for i, n in enumerate(NAMES) if n.startswith("log10_mSk_p")]
+    _dd = np.hypot(PP_XY[:, None, 0] - PP_XY[None, :, 0], PP_XY[:, None, 1] - PP_XY[None, :, 1])
+    _C[np.ix_(_ip, _ip)] = PP_SD ** 2 * np.exp(-_dd / PP_CORR)
+    PRIOR_Q = np.linalg.inv(_C)
+else:
+    PRIOR_Q = np.diag(1 / PRIOR_SD ** 2)
 
 # ---------------------------------------------------------------- 모델 버전과 결과 폴더
 # 취수 추정 방식(AQ_PUMPING)마다 결과를 다른 폴더에 둔다. 서로 다른 버전 결과가 섞이지 않게 폴더마다 model_version.json을 남기고 확인한다.
@@ -605,7 +673,11 @@ def run_model_cvhm2(site, theta, ws=None, keep=False, plan=None, robust=False):
                     wel[k] += [[(L, ny - 1 - iy, ix), -rate * f] for L, f in ((2, 0.6), (3, 0.4))]
     wel = {k: (v if v else [[(2, ny - 1 - int(ag[0][0]), int(ag[0][1])), 0.0]]) for k, v in wel.items()}
     flopy.mf6.ModflowGwfwel(gwf, stress_period_data=wel)
-    mult = 10 ** np.array([p[f"log10_mSk_z{i}"] for i in range(SK_ZONES ** 2)])[zone_index(site)]
+    if PP_XY is not None:                                          # pp: 파일럿 포인트 값을 칸으로 보간
+        vals = np.array([p[f"log10_mSk_p{i}"] for i in range(len(PP_XY))])
+        mult = 10 ** (pp_weights(ny, nx) @ vals).reshape(ny, nx)
+    else:
+        mult = 10 ** np.array([p[f"log10_mSk_z{i}"] for i in range(SK_ZONES ** 2)])[zone_index(site)]
     if "aq" in FEAT:                                               # 수로 띠(AQ_CORR_KM 안) 추가 배수: 3×3 구역으로는 수로를 따라 좁게 몰린 침하를 못 담는다
         corr = site["aq_dist"] <= AQ_CORR_KM
         south = (np.arange(site["ny"]) < site["ny"] // 2)[:, None]
@@ -912,15 +984,14 @@ def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None, 
         log(f"  중간 저장에서 이어 함: 반복 {it0}/{n_iter} 완료 상태")
     def cost(o, t):
         r = (simulate_obs(o, idx) - idx["d"]) / idx["sd"]
-        return float(r @ r + (((t - PRIOR_MEAN) / PRIOR_SD) ** 2).sum()), r
+        return float(r @ r + (t - PRIOR_MEAN) @ PRIOR_Q @ (t - PRIOR_MEAN)), r
     out = run_model(site, th)
     c, r = cost(out, th)
     for it in range(it0, n_iter):
         base = simulate_obs(out, idx)
         J = _fd_jacobian(site, th, idx, base, workers=workers)
-        Jp = np.diag(1 / PRIOR_SD)
-        A = J.T @ J + Jp.T @ Jp
-        g = J.T @ r + (th - PRIOR_MEAN) / PRIOR_SD ** 2
+        A = J.T @ J + PRIOR_Q                                      # 사전 정밀도(보통 대각 1/σ²)
+        g = J.T @ r + PRIOR_Q @ (th - PRIOR_MEAN)
         improved = False
         for _ in range(4):                                         # 감쇠 계수 조정
             step = -np.linalg.solve(A + lam * np.diag(np.diag(A)), g)
@@ -946,7 +1017,7 @@ def calibrate(site, use_insar, n_iter=8, workers=None, log=print, cal_end=None, 
             break
     base = simulate_obs(out, idx)
     J = _fd_jacobian(site, th, idx, base, workers=workers)
-    cov = np.linalg.inv(J.T @ J + np.diag(1 / PRIOR_SD ** 2))
+    cov = np.linalg.inv(J.T @ J + PRIOR_Q)
     # 잔차가 가정한 오차(σ)보다 크면 모델 구조 오차가 있다는 뜻 → 공분산을 그만큼 키운다
     scale = max(1.0, float((r @ r) / max(len(r) - len(th), 1)))
     return th, cov * scale, hist
@@ -959,7 +1030,7 @@ def posterior_cov(site, th, use_insar, cal_end=None, workers=None):
     base = simulate_obs(out, idx)
     r = (base - idx["d"]) / idx["sd"]
     J = _fd_jacobian(site, th, idx, base, workers=workers)
-    cov = np.linalg.inv(J.T @ J + np.diag(1 / PRIOR_SD ** 2))
+    cov = np.linalg.inv(J.T @ J + PRIOR_Q)
     scale = max(1.0, float((r @ r) / max(len(r) - len(th), 1)))
     return cov * scale
 
