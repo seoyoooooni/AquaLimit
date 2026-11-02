@@ -138,6 +138,7 @@ def warm_start():
             p = json.load(open(f))["params"]
             m = dict(zip(p["names"], p["E3"]))
             m.update(r.pp_start_from_zones(m))           # pp: 구역 값 → 파일럿 포인트 시작값
+            m.update({k: m["log10_sw"] for k in ("log10_sw_in", "log10_sw_out") if "log10_sw" in m})   # sw2: 이전 수로물 값에서 시작
             print(f"  역산 시작점: {d.name}/ E3 해")
             return np.array([m.get(n, mu) for n, mu in zip(r.NAMES, r.PRIOR_MEAN)])
     return None

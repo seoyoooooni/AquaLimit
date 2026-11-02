@@ -92,6 +92,8 @@ V3 = VARIANT.startswith(("v3", "v4"))
 #   hw   : 보정에서 관측정 수위 가중치 키우기(σ 0.5m → AQ_SIG_HEAD, 기본 0.2m). v3 보정 목적함수에서 수위 몫은 2.5%뿐이었다
 #   pp   : 압축 계수 배수를 3×3 구역 대신 파일럿 포인트로(배경 5×5 + 수로 따라 3km 간격), 점끼리 거리 상관 사전분포 — 11/2 추가
 #          근거: 후보 8개 모두 편향을 뺀 나머지 오차가 12.7~15.6mm로 같다 → 남은 오차는 칸별 분포(구역 경계가 지도에 그대로 보임)
+#   sw2  : 수로물 공급 깊이를 금지구역(수로 동쪽 4km 안 농경지)·바깥 두 개로 — 11/2 추가
+#          근거: 2020~22 가뭄에 실제 침하는 바깥 3.0배·수로 근처 1.3~1.7배인데, 모델 취수 입력은 1.24배·1.37배(같은 해 모든 칸 지하수 비율이 같음)
 FEAT = set(VARIANT.split("-")[1:]) - {"ops"} if VARIANT.startswith("v4") else set()
 SIG_HEAD_CAL = float(os.environ.get("AQ_SIG_HEAD", 0.2)) if "hw" in FEAT else SIG_HEAD   # hw: 보정 때만 쓰는 수위 σ(m)
 OIL_FIELDS = [x.strip() for x in os.environ.get("AQ_OIL_FIELDS", "Lost Hills").split(";") if x.strip()]   # oil: 침하를 내는 유전(;로 구분)
@@ -182,6 +184,9 @@ if V3:
         PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_emult", 0.0, 0.3)]      # 탄성 압축 계수 배수
     if "aq" in FEAT:                           # 수로 2km 안 띠의 압축 계수 배수(북·남). 위성: 수로 2km 안 침하가 2~4km보다 2배 크다(2022.12 누적 84 vs 39mm)
         PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_mSk_aq_n", 0.0, 0.5), ("log10_mSk_aq_s", 0.0, 0.5)]
+    if "sw2" in FEAT:                          # 수로물 공급 깊이(m/년, 배분율 100%일 때)를 금지구역 안·밖 따로
+        PARAMS_CVHM2 = [q for q in PARAMS_CVHM2 if q[0] != "log10_sw"] + \
+                       [("log10_sw_in", np.log10(0.3), 0.4), ("log10_sw_out", np.log10(0.3), 0.4)]
     if "oil" in FEAT:                          # 유전 침하 성분: 유전 경계에서의 속도(mm/년, 3σ 0.6~160), 줄어드는 거리(km, 3σ 0.25~16)
         PARAMS_CVHM2 = PARAMS_CVHM2 + [("log10_oil_v", 1.0, 0.4), ("log10_oil_L", np.log10(2.0), 0.3)]
     if VARIANT.endswith("ops"):
@@ -483,20 +488,26 @@ def forcing(site, theta, extra_months=0, future_dry=0.0, future=None):
         # 수로물은 물 공급구역 단위로 정해진 양(계약량 × 그해 배분율)이 들어오고, 달별로는 수요에 비례해 나눠 쓴다.
         # 수로물이 수요보다 적은 만큼을 지하수로 채운다 → 배분율이 낮은 가뭄 해에 지하수 취수가 크게 는다.
         yr = np.array([m.year for m in months])
-        tot = need.sum((1, 2))
-        sw = np.zeros(len(months))
-        n_ag = site["ag"].sum()
         # 같은 해, 같은 배분율인 달끼리 묶는다. 과거 달은 해마다 배분율이 하나라 해별 묶음과 같다.
         # 미래 시나리오에서 배분율을 바꾸면(future["alloc"]) 그해 과거 달과 미래 달이 따로 묶여 미래 설정값이 반영된다.
         # 과거 달과 미래(계획) 달도 따로 묶는다 → 계획 기간을 붙여도 과거 달의 취수가 바뀌지 않는다.
         fut_flag = np.arange(len(months)) >= n_hist
         grp = [(int(y), float(v), bool(f)) for y, v, f in zip(yr, a, fut_flag)]
-        for g in dict.fromkeys(grp):
-            k = np.array([x == g for x in grp])
-            sw_g = 10 ** p["log10_sw"] * 1000.0 * g[1] * n_ag * (k.sum() / 12.0)   # mm × 칸
-            sw[k] = sw_g * tot[k] / max(tot[k].sum(), 1e-9)
-        frac_gw = np.clip(1 - sw / np.maximum(tot, 1e-9), 0.0, 1.0)
-        gw = need * frac_gw[:, None, None]                            # 지하수로 채우는 양 mm/달
+        # 지역(묶음)마다 수로물 총량 = 공급 깊이 × 배분율 × 그 지역 농경지 칸 수, 지역 안에서 달별 수요에 비례해 나눈다.
+        # 기본: 농경지 전체 한 묶음(이전과 같은 계산). sw2: 금지구역(수로 동쪽 4km 안) / 바깥 두 묶음.
+        regions = ([(site["buf"], p["log10_sw_in"]), (site["ag"] & ~site["buf"], p["log10_sw_out"])] if "log10_sw_in" in p
+                   else [(site["ag"], p["log10_sw"])])
+        gw = np.zeros_like(need)
+        for mask, lsw in regions:
+            tot = (need * mask[None]).sum((1, 2))
+            n_r = mask.sum()
+            sw = np.zeros(len(months))
+            for g in dict.fromkeys(grp):
+                k = np.array([x == g for x in grp])
+                sw_g = 10 ** lsw * 1000.0 * g[1] * n_r * (k.sum() / 12.0)   # mm × 칸
+                sw[k] = sw_g * tot[k] / max(tot[k].sum(), 1e-9)
+            frac_gw = np.clip(1 - sw / np.maximum(tot, 1e-9), 0.0, 1.0)
+            gw = gw + need * frac_gw[:, None, None] * mask[None]     # 지하수로 채우는 양 mm/달
         q = gw / 1000.0 / days[:, None, None] * MCELL * MCELL         # m3/일/칸
         q = q + base_uniform(site, p, months, extra_months, future.get("dry", future_dry))[:, None, None]
         q = q * site["ag"][None]
