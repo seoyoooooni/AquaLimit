@@ -16,8 +16,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from cloud_mf6 import configure_mf6
+
 os.environ.setdefault("AQ_VARIANT", "v3ops")
 os.environ.setdefault("AQ_PUMPING", "et")
+configure_mf6()
 import real_model as r  # noqa: E402
 import plan_real as p  # noqa: E402
 import future_simulator as future  # noqa: E402

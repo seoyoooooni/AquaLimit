@@ -56,7 +56,7 @@ def forecast_months(start, count, last_observed=None):
     return pd.period_range(start, periods=count, freq="M"), bridge
 
 
-def build_responses(site, thetas, pts, wells, caps, start, count, scenario, workers=4):
+def build_responses(site, thetas, pts, wells, caps, start, count, scenario, workers=2):
     """Physical impulse responses for every (month, well), at every month end.
 
     The bridge assumes this operator pumps at 75% of well capacity. During the
@@ -120,7 +120,7 @@ def load_cached_responses(site, thetas, wells, caps, start, count, scenario,
 
 
 def cached_responses(site, thetas, pts, wells, caps, start, count, scenario,
-                     cache_dir=None, workers=4):
+                     cache_dir=None, workers=2):
     """Keep completed physical responses available for a live demo restart."""
     path = response_cache_path(site, thetas, wells, caps, start, count,
                                scenario, cache_dir)
@@ -134,7 +134,7 @@ def cached_responses(site, thetas, pts, wells, caps, start, count, scenario,
     return out
 
 
-def verify_schedule(site, thetas, pts, data, rates, workers=4):
+def verify_schedule(site, thetas, pts, data, rates, workers=2):
     """Run the optimized monthly schedule directly through MODFLOW."""
     M, W = np.asarray(rates).shape
     bridge = int(data["bridge"])

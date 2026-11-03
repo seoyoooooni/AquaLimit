@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1921">
+  <title>AquaLimit · 발표 데모</title>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0d1921; color: #eaf3f3; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.6; }
+    a { color: inherit; }
+    header { position: sticky; top: 0; z-index: 3; background: #0d1921ed; border-bottom: 1px solid #24404b; backdrop-filter: blur(12px); }
+    .nav { max-width: 1120px; margin: auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { font-size: 19px; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
+    .navlinks { display: flex; align-items: center; gap: 22px; font-size: 13px; color: #b7ced2; }
+    .navlinks a { text-decoration: none; }
+    .navlinks a:hover { color: #fff; }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #42b5a1; border-radius: 10px; background: #41b6a1; color: #08211f; font-weight: 800; padding: 11px 16px; text-decoration: none; cursor: pointer; }
+    .button:hover { background: #68cdb9; }
+    .button.secondary { background: transparent; color: #d4e7e6; border-color: #41616b; }
+    .button[aria-disabled="true"] { opacity: .55; cursor: default; }
+    main { max-width: 1120px; margin: auto; padding: 0 24px 72px; }
+    .hero { padding: 76px 0 68px; display: grid; grid-template-columns: 1.2fr .8fr; gap: 40px; align-items: center; }
+    .eyebrow { color: #6bd8c4; font-size: 12px; letter-spacing: .13em; font-weight: 800; text-transform: uppercase; }
+    h1 { margin: 14px 0 18px; font-size: clamp(36px, 5vw, 62px); line-height: 1.13; letter-spacing: -.065em; }
+    h2 { margin: 0 0 10px; font-size: clamp(27px, 3.5vw, 38px); line-height: 1.2; letter-spacing: -.045em; }
+    h3 { margin: 0 0 8px; font-size: 17px; }
+    p { margin: 0 0 16px; color: #bacdd0; }
+    .lead { font-size: 18px; max-width: 670px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .hero-art { min-height: 300px; border-radius: 24px; border: 1px solid #345c62; background: radial-gradient(circle at 26% 20%, #276d70 0, transparent 40%), linear-gradient(145deg, #173941, #0d222d); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .hero-art svg { width: 100%; height: 100%; min-height: 300px; }
+    section { padding: 54px 0; border-top: 1px solid #24404b; scroll-margin-top: 66px; }
+    .section-head { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .section-head p { max-width: 600px; margin: 0; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card { border: 1px solid #294852; border-radius: 16px; background: #142832; padding: 22px; }
+    .metric-label { font-size: 13px; color: #a4bfc3; }
+    .metric { margin: 7px 0; font-size: 31px; line-height: 1.2; font-weight: 800; letter-spacing: -.05em; }
+    .small { font-size: 12px; color: #9db6bc; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .bar-row { display: grid; grid-template-columns: 148px 1fr 52px; gap: 12px; align-items: center; margin: 13px 0; font-size: 13px; }
+    .track { height: 16px; border-radius: 9px; background: #203b45; overflow: hidden; }
+    .fill { height: 100%; border-radius: 9px; background: #5b96a3; }
+    .fill.good { background: #55cbb3; }
+    .note { border-left: 3px solid #63cfba; padding-left: 15px; margin-top: 22px; font-size: 14px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .step { padding: 17px; border: 1px solid #294852; border-radius: 13px; background: #10242e; }
+    .step strong { display: block; margin-bottom: 3px; }
+    .step span { font-size: 13px; color: #aac2c7; }
+    .settings { display: flex; gap: 8px; flex-wrap: wrap; margin: 5px 0 19px; }
+    .chip { background: #1b3941; color: #d9eded; padding: 6px 11px; border: 1px solid #3b666b; border-radius: 50px; font-size: 12px; }
+    .table-wrap { overflow-x: auto; border: 1px solid #294852; border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid #27404a; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #19343d; color: #cce4e3; font-size: 12px; }
+    tr:last-child td { border-bottom: 0; }
+    .chart { width: 100%; height: auto; display: block; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px; color: #b8ced0; font-size: 12px; }
+    .key { display: inline-block; width: 20px; height: 3px; vertical-align: middle; margin-right: 6px; }
+    .warning { color: #f1d6a7; background: #3a3024; border: 1px solid #71563b; border-radius: 12px; padding: 15px 18px; font-size: 13px; }
+    footer { color: #829fa5; padding-top: 22px; font-size: 12px; }
+    @media (max-width: 760px) { .hero, .split { grid-template-columns: 1fr; } .hero { padding-top: 40px; } .grid3, .steps { grid-template-columns: 1fr; } .navlinks { gap: 10px; } .navlinks a:not(.button) { display: none; } .section-head { display: block; } }
+  </style>
+</head>
+<body>
+  <header><div class="nav"><a class="brand" href="#top">AquaLimit</a><nav class="navlinks" aria-label="섹션"><a href="#experiment">최근 실험</a><a href="#simulator">월별 계획</a><a href="#scope">읽는 법</a><a id="nav-live" class="button secondary" href="#simulator">시뮬레이터 보기</a></nav></div></header>
+  <main id="top">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">California Aqueduct · MP 195–215</div>
+        <h1>어느 우물에서,<br>언제, 얼마나<br>뽑을까?</h1>
+        <p class="lead">수로 침하 영향을 계산하고, 필요한 물을 공급하면서 추가 침하 한도를 지키는 월별 취수 계획을 찾습니다.</p>
+        <div class="actions"><a id="hero-live" class="button" href="#simulator">발표용 결과 보기 ↗</a><a class="button secondary" href="#experiment">개발 실험 보기</a></div>
+      </div>
+      <div class="hero-art" aria-hidden="true"><svg viewBox="0 0 430 330" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M25 270 C110 228 107 113 193 93 C289 70 294 170 406 36" stroke="#65d4c0" stroke-width="11" stroke-linecap="round"/><path d="M25 270 C110 228 107 113 193 93 C289 70 294 170 406 36" stroke="#d5fff5" stroke-width="2" stroke-linecap="round"/><g fill="#f6b86e"><circle cx="79" cy="239" r="9"/><circle cx="131" cy="157" r="9"/><circle cx="220" cy="96" r="9"/><circle cx="285" cy="122" r="9"/><circle cx="350" cy="104" r="9"/></g><g fill="#65d4c0" opacity=".45"><circle cx="102" cy="271" r="4"/><circle cx="171" cy="205" r="5"/><circle cx="237" cy="231" r="5"/><circle cx="310" cy="239" r="4"/><circle cx="368" cy="184" r="4"/></g><path d="M25 305H405M25 220H405M25 135H405M25 50H405" stroke="#41656b" stroke-opacity=".45"/></svg></div>
+    </div>
+
+    <section id="experiment">
+      <div class="section-head"><div><div class="eyebrow">01 · Development experiment</div><h2>최근 1주 모델 개선 실험</h2></div><p>10월 28일~11월 2일, 기존 물리모델을 고친 11개 후보를 같은 연습 시험으로 비교했습니다.</p></div>
+      <div class="grid3">
+        <div class="card"><div class="metric-label">기존 v3 · 수로 2km 예측 오차</div><div class="metric">14.0 mm</div><div class="small">2020~2022 NASA OPERA 위성 기준</div></div>
+        <div class="card"><div class="metric-label">이번 주 최고 후보 · 예측 오차</div><div class="metric">15.1 mm</div><div class="small">11개 후보 모두 기존 모델보다 큼</div></div>
+        <div class="card"><div class="metric-label">위치별 분포 오차</div><div class="metric">13.9 → 11.7</div><div class="small">파일럿 포인트는 분포를 개선했지만 전체 편향 증가</div></div>
+      </div>
+      <div class="split" style="margin-top:16px">
+        <div class="card"><h3>같은 기준으로 채점</h3><div class="steps" style="grid-template-columns:1fr"><div class="step"><strong>① 보정</strong><span>2015~2019 위성·관측정 자료로 땅속 성질 추정</span></div><div class="step"><strong>② 연습 시험</strong><span>2020~2022 침하 예측을 OPERA 위성과 비교</span></div><div class="step"><strong>③ 판정</strong><span>수로 2km 오차가 14.0mm보다 낮고 GPS P544가 크게 악화되지 않아야 채택</span></div></div></div>
+        <div class="card"><h3>수로 2km 예측 오차 · 낮을수록 좋음</h3><div class="bar-row"><span>기존 v3</span><div class="track"><div class="fill good" style="width:61.1%"></div></div><strong>14.0</strong></div><div class="bar-row"><span>최고 후보</span><div class="track"><div class="fill" style="width:65.9%"></div></div><strong>15.1</strong></div><div class="bar-row"><span>유전 침하 추가</span><div class="track"><div class="fill" style="width:68.1%"></div></div><strong>15.6</strong></div><div class="bar-row"><span>점토 분포 세분화</span><div class="track"><div class="fill" style="width:69.4%"></div></div><strong>15.9</strong></div><p class="note">점토의 위치별 분포는 개선됐지만 수로 근처 침하량을 과대예측했습니다. 다음에 필요한 것은 실제 취수량·수로물 공급량 같은 입력 자료입니다.</p></div>
+      </div>
+    </section>
+
+    <section id="simulator">
+      <div class="section-head"><div><div class="eyebrow">02 · Monthly plan</div><h2>미리 계산한 미래 월별 계획</h2></div><p>2026년 11월~2027년 1월, 평년 시나리오. A~F는 실제 신고 위치를 이용한 우물이며 월별 운영량은 모델이 계산한 제안값입니다.</p></div>
+      <div class="settings"><span class="chip">시작 2026-11</span><span class="chip">기간 3개월</span><span class="chip">평년</span><span class="chip">우물 6곳</span><span class="chip">지층 상태 3개</span><span class="chip">반응 여유 25%</span></div>
+      <div class="grid3"><div class="card"><div class="metric-label">계획 기간 총비용</div><div class="metric">$261천</div><div class="small">양수 비용 + 외부 용수 비용</div></div><div class="card"><div class="metric-label">외부 용수</div><div class="metric">69천 m³</div><div class="small">11월에 확보하는 계획</div></div><div class="card"><div class="metric-label">추가 침하 한도 초과</div><div class="metric">0 / 3</div><div class="small">계획에 사용한 지층 상태 3개 기준</div></div></div>
+      <div class="card" style="margin-top:16px"><h3>우물별 하루 평균 취수 계획</h3><div class="table-wrap"><table><thead><tr><th>월</th><th>우물 A</th><th>우물 B</th><th>우물 C</th><th>우물 D</th><th>우물 E</th><th>우물 F</th><th>외부 용수</th></tr></thead><tbody><tr><td>2026-11</td><td>8,722</td><td>8,722</td><td>8,169</td><td>0</td><td>0</td><td>8,722</td><td>68,913</td></tr><tr><td>2026-12</td><td>1,744</td><td>8,722</td><td>8,722</td><td>8,722</td><td>0</td><td>8,722</td><td>0</td></tr><tr><td>2027-01</td><td>1,744</td><td>8,722</td><td>8,722</td><td>8,722</td><td>0</td><td>8,722</td><td>0</td></tr></tbody></table></div><div class="small" style="margin-top:10px">우물 수치는 m³/일, 외부 용수는 m³/월입니다. 11월과 12월의 계획이 다릅니다.</div></div>
+      <div class="card" style="margin-top:16px"><h3>사업자 계획으로 생기는 최대 추가 침하</h3><svg class="chart" viewBox="0 0 600 270" role="img" aria-label="2026년 11월부터 2027년 1월까지 세 지층 상태의 추가 침하는 허용 한도 아래에 있습니다"><path d="M55 20V220H560" stroke="#6e9199"/><path d="M55 220H560M55 170H560M55 120H560M55 70H560M55 20H560" stroke="#2c4c54"/><g fill="#aac3c7" font-size="12"><text x="18" y="224">0</text><text x="18" y="174">0.5</text><text x="18" y="124">1.0</text><text x="18" y="74">1.5</text><text x="18" y="24">2.0</text><text x="76" y="247">2026-11</text><text x="267" y="247">2026-12</text><text x="455" y="247">2027-01</text></g><path d="M100 155 L300 87 L500 20" stroke="#f1d6a7" stroke-width="2" stroke-dasharray="7 5" fill="none"/><path d="M100 176 L300 140 L500 113" stroke="#55cbb3" stroke-width="3" fill="none"/><path d="M100 176 L300 140 L500 112" stroke="#67a4da" stroke-width="3" fill="none"/><path d="M100 168 L300 119 L500 81" stroke="#da9dc5" stroke-width="3" fill="none"/><g fill="#55cbb3"><circle cx="100" cy="176" r="4"/><circle cx="300" cy="140" r="4"/><circle cx="500" cy="113" r="4"/></g></svg><div class="legend"><span><i class="key" style="background:#55cbb3"></i>지층 상태 1</span><span><i class="key" style="background:#67a4da"></i>지층 상태 2</span><span><i class="key" style="background:#da9dc5"></i>지층 상태 3</span><span><i class="key" style="background:#f1d6a7"></i>허용 추가 침하</span></div></div>
+    </section>
+
+    <section id="scope"><div class="eyebrow">How to read this demo</div><h2>이 숫자는 무엇을 뜻하나?</h2><div class="split"><div class="card"><h3>실제 자료</h3><p>DWR 신고 농업용 우물 A~F의 위치·깊이, 위성·관측정·GPS 관측을 모델 구축과 검증에 사용했습니다.</p><h3>계획에 둔 가정</h3><p>여섯 우물을 한 사업자가 운영한다는 설정, 신고 양수량이 없는 우물의 대표 용량, 미래 날씨, 외부 용수 단가, 사업자 추가 침하 한도입니다.</p></div><div class="card"><h3>해석 범위</h3><p>2026년 4월 이후는 선택한 시나리오로 이어 계산한 예측입니다. `0/3`은 계획에 사용한 모델 세 개에서 초과가 없다는 뜻이며 실제 초과 확률을 뜻하지 않습니다.</p><div class="warning">이 페이지는 기본 조건의 미리 계산된 발표용 결과입니다. 다른 월·날씨·우물 조건을 다시 계산하려면 Streamlit 실행 앱에서 MODFLOW를 돌려야 합니다.</div></div></div><div class="actions"><a id="bottom-live" class="button" href="#simulator">실행 앱 열기 ↗</a><a class="button secondary" href="https://github.com/seoyoooooni/AquaLimit">코드와 자료 보기</a></div></section>
+    <footer>© 2026 AquaLimit · 기본 계획: MODFLOW 6.7.0 · 사업자 추가 침하 한도는 발표용 가정입니다.</footer>
+  </main>
+  <script src="app-url.js"></script>
+  <script>
+    const url = window.AQUALIMIT_APP_URL;
+    if (url) {
+      for (const id of ["nav-live", "hero-live", "bottom-live"]) {
+        const link = document.getElementById(id);
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "실행 앱 열기 ↗";
+      }
+    } else {
+      document.getElementById("nav-live").textContent = "월별 결과 보기";
+      document.getElementById("bottom-live").textContent = "월별 결과 보기";
+    }
+  </script>
+</body>
+</html>
