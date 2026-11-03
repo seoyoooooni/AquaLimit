@@ -3,7 +3,7 @@
 실행: cd real && streamlit run app_final.py
 시연 흐름: ① 문제(지도·금지 후에도 침하) → ② 관리기관: 전면 금지 vs AquaLimit
 → ③ 사업자: 과거 고정 계획과 시작 월·기간을 고르는 미래 계획 → ④ 검증(GPS, 자연 실험)
-⑤ 지난 일주일 모델 개선 실험 기록(app_trials.py, 학교 발표용 — 고객 화면 ①~④와 따로)
+⑤ 지난 일주일 모델 개선 실험 기록(app_trials.py) → ⑥ 전체 실험 한눈표(app_experiments.py)
 ③ 기본 조건은 미리 계산한 MODFLOW 응답을 읽는다. 새 기간·날씨·우물 조합은 MODFLOW로 다시 계산한다.
 이전 2026년 5~7월 위치 입력 AI 계획도 ③에서 선택할 수 있다.
 """
@@ -91,7 +91,7 @@ def load():
 D = load()
 st.title("AquaLimit")
 st.caption("California Aqueduct MP 195~215 · 위성·관측정·GPS로 보정한 지하수 모델 · 관리 기준 연 12.7mm")
-t1, t2, t3, t4, t5 = st.tabs(["① 현장 문제", "② 정책 비교", "③ 우물별 시뮬레이터", "④ 검증 결과", "⑤ 최근 1주 실험"])
+t1, t2, t3, t4, t5, t6 = st.tabs(["① 현장 문제", "② 정책 비교", "③ 우물별 시뮬레이터", "④ 검증 결과", "⑤ 최근 1주 실험", "⑥ 전체 실험"])
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
@@ -463,5 +463,13 @@ with t5:
     try:
         import app_trials
         app_trials.render(r)
-    except Exception as e:                        # 실험 기록 탭이 실패해도 ①~④ 탭은 그대로 보인다
+    except Exception as e:                        # 실험 기록 탭이 실패해도 다른 탭은 그대로 보인다
         st.error(f"실험 기록 탭을 그리지 못했습니다: {e}")
+
+
+with t6:
+    try:
+        import app_experiments
+        app_experiments.render()
+    except Exception as e:
+        st.error(f"전체 실험 탭을 그리지 못했습니다: {e}")

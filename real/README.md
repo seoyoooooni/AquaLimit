@@ -96,6 +96,7 @@ AQ_INSAR=opera AQ_VARIANT=v4-oil python3 rescore_practice.py # 그 채점(추세
 | `plan_real.py`, `run_plan.py`, `run_weather.py`, `eval_plan_oos.py` | 사업자 우물 계획, 날씨 시나리오, 표본 밖 평가 |
 | `surrogate_loc.py` | 위치 입력 AI 대리모델 |
 | `app_final.py` | 최종 Streamlit 데모 |
+| `app_trials.py`, `app_experiments.py` | ⑤ 최근 1주 모델 개선 실험, ⑥ 전체 발표용 실험 한눈표(저장된 결과만 표시) |
 | `fetch_data.py`, `prepare_insar.py`, `fetch_cvhm2.py`, `fetch_et.py`, `fetch_landsat.py`, `fetch_opera.py`, `prepare_opera.py` | 자료 수집·가공 |
 | `opera_analysis.py` | OPERA 위성 점검(모델 없음) |
 | `opera_checks.py` | 위성 점검 추가(11/2): 이중차분 위약 검사·유전 영향, 수로 거리별 속도, P544 GPS·OPERA·DWR 연별(그림 없음) |
